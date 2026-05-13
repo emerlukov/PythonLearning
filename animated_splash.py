@@ -15,16 +15,38 @@ from kivy.core.text import LabelBase
 import threading
 import time
 
-# Регистрируем шрифты
-fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
+# ========== РЕГИСТРАЦИЯ ШРИФТОВ ==========
+# Получаем путь к папке fonts относительно текущего файла
+current_dir = os.path.dirname(os.path.abspath(__file__))
+fonts_dir = os.path.join(current_dir, 'fonts')
 
+print(f"Looking for fonts in: {fonts_dir}")
+
+# Регистрируем жирный шрифт (SourceSansPro-Bold.ttf)
 bold_font_path = os.path.join(fonts_dir, 'SourceSansPro-Bold.ttf')
 if os.path.exists(bold_font_path):
     LabelBase.register(name='SplashTitle', fn_regular=bold_font_path)
+    print(f"✅ Registered SplashTitle from: {bold_font_path}")
+else:
+    print(f"❌ Font not found: {bold_font_path}")
+    # Вместо Roboto используем стандартный шрифт Kivy
+    # Не регистрируем ничего, будем использовать 'Roboto' который уже есть в Kivy
+    pass
 
+# Регистрируем обычный шрифт (NotoSans-Regular.ttf)
 regular_font_path = os.path.join(fonts_dir, 'NotoSans-Regular.ttf')
 if os.path.exists(regular_font_path):
     LabelBase.register(name='SplashRegular', fn_regular=regular_font_path)
+    print(f"✅ Registered SplashRegular from: {regular_font_path}")
+else:
+    print(f"❌ Font not found: {regular_font_path}")
+    # Не регистрируем ничего
+
+# Также пробуем DejaVuSans как запасной
+dejavu_font_path = os.path.join(fonts_dir, 'DejaVuSans.ttf')
+if os.path.exists(dejavu_font_path):
+    LabelBase.register(name='DejaVuSans', fn_regular=dejavu_font_path)
+    print(f"✅ Registered DejaVuSans from: {dejavu_font_path}")
 
 
 class AnimatedSplashScreen(Screen):
@@ -61,12 +83,15 @@ class AnimatedSplashScreen(Screen):
         top_spacer = BoxLayout(size_hint_y=0.15)
         layout.add_widget(top_spacer)
         
-        # Название (две строки)
+        # ===== НАЗВАНИЕ =====
+        # Определяем какой шрифт использовать
+        title_font = 'SplashTitle' if os.path.exists(bold_font_path) else 'Roboto'
+        
         self.title_label = Label(
             text='[b]Python[/b]\nLearning IDE',
             markup=True,
-            font_name='SplashTitle',
-            font_size=sp(32),
+            font_name=title_font,
+            font_size=sp(30),
             color=(1, 1, 1, 1),
             halign='center',
             valign='middle',
@@ -77,11 +102,13 @@ class AnimatedSplashScreen(Screen):
         )
         layout.add_widget(self.title_label)
         
-        # Подзаголовок
+        # ===== ПОДЗАГОЛОВОК =====
+        subtitle_font = 'SplashRegular' if os.path.exists(regular_font_path) else 'Roboto'
+        
         self.subtitle_label = Label(
             text='Learn Python on Android',
-            font_name='SplashRegular',
-            font_size=sp(13),
+            font_name=subtitle_font,
+            font_size=sp(12),
             color=(0.75, 0.75, 0.75, 0.9),
             halign='center',
             valign='top',
@@ -89,7 +116,7 @@ class AnimatedSplashScreen(Screen):
         )
         layout.add_widget(self.subtitle_label)
         
-        # Прогресс-бар
+        # ===== ПРОГРЕСС-БАР =====
         progress_container = BoxLayout(
             size_hint=(0.7, 0.06),
             pos_hint={'center_x': 0.5}
@@ -122,10 +149,10 @@ class AnimatedSplashScreen(Screen):
         progress_container.add_widget(self.progress_bar)
         layout.add_widget(progress_container)
         
-        # Статус
+        # ===== СТАТУС =====
         self.status_label = Label(
             text='Загрузка...',
-            font_name='SplashRegular',
+            font_name='Roboto',
             font_size=sp(11),
             color=(0.75, 0.75, 0.75, 0.9),
             halign='center',
@@ -134,10 +161,10 @@ class AnimatedSplashScreen(Screen):
         )
         layout.add_widget(self.status_label)
         
-        # Анимированные точки
+        # ===== АНИМИРОВАННЫЕ ТОЧКИ =====
         self.dots_label = Label(
             text='',
-            font_name='SplashRegular',
+            font_name='Roboto',
             font_size=sp(16),
             color=(0.7, 0.7, 0.7, 0.6),
             halign='center',
@@ -174,7 +201,9 @@ class AnimatedSplashScreen(Screen):
     
     def _start_animations(self):
         """Анимации"""
-        anim = Animation(font_size=sp(34), duration=0.5, t='out_back')
+        # Анимация появления
+        anim = Animation(opacity=1, duration=0.5)
+        self.title_label.opacity = 0
         anim.start(self.title_label)
         
         pulse = Animation(opacity=0.4, duration=1) + Animation(opacity=0.7, duration=1)
@@ -260,3 +289,8 @@ class AnimatedSplashScreen(Screen):
                 instance.width * (value / 100),
                 instance.height
             )
+
+
+
+
+

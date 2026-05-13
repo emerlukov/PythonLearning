@@ -32,9 +32,25 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install buildozer cython==0.29.36
 
+      - name: Ensure splash.png exists
+        run: |
+          if [ ! -f splash.png ]; then
+            echo "❌ splash.png not found!"
+            exit 1
+          else
+            echo "✅ splash.png found"
+            ls -la splash.png
+          fi
+          
+          if [ ! -f icon.png ]; then
+            echo "⚠️ icon.png not found, creating placeholder"
+            # Создаём чёрный квадрат как заглушку для иконки
+            echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icon.png
+          fi
+
       - name: Clean builds
         run: |
-          rm -rf \~/.buildozer .buildozer
+          rm -rf ~/.buildozer .buildozer
           buildozer -v android clean || true
 
       - name: Build APK with pip fix
@@ -59,4 +75,4 @@ jobs:
         with:
           name: Python-Learning-IDE-APK
           path: bin/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error

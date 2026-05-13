@@ -15,24 +15,20 @@ from kivy.core.text import LabelBase
 import threading
 import time
 
-# Регистрируем шрифты (безопасно)
+# Регистрируем шрифты
 fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
 
 bold_font_path = os.path.join(fonts_dir, 'SourceSansPro-Bold.ttf')
 if os.path.exists(bold_font_path):
     LabelBase.register(name='SplashTitle', fn_regular=bold_font_path)
-else:
-    LabelBase.register(name='SplashTitle', fn_regular='Roboto')
 
 regular_font_path = os.path.join(fonts_dir, 'NotoSans-Regular.ttf')
 if os.path.exists(regular_font_path):
     LabelBase.register(name='SplashRegular', fn_regular=regular_font_path)
-else:
-    LabelBase.register(name='SplashRegular', fn_regular='Roboto')
 
 
 class AnimatedSplashScreen(Screen):
-    """Чёрно-белая анимированная заставка"""
+    """Третья заставка - анимированная с прогресс-баром"""
     
     def __init__(self, main_app, **kwargs):
         super().__init__(**kwargs)
@@ -46,7 +42,7 @@ class AnimatedSplashScreen(Screen):
             self.bg_rect = Rectangle(pos=self.pos, size=self.size)
             
             # Едва заметный декоративный круг
-            Color(0.12, 0.12, 0.12, 0.5)
+            Color(0.12, 0.12, 0.12, 0.3)
             self.circle_bg = RoundedRectangle(
                 pos=(self.center_x - dp(150), self.y - dp(50)),
                 size=(dp(300), dp(300)),
@@ -65,7 +61,7 @@ class AnimatedSplashScreen(Screen):
         top_spacer = BoxLayout(size_hint_y=0.15)
         layout.add_widget(top_spacer)
         
-        # Название (две строки, меньший шрифт)
+        # Название (две строки)
         self.title_label = Label(
             text='[b]Python[/b]\nLearning IDE',
             markup=True,
@@ -101,6 +97,7 @@ class AnimatedSplashScreen(Screen):
         
         self.progress_bar = ProgressBar(max=100, value=0, size_hint=(1, 1))
         
+        # Стилизация прогресс-бара
         self.progress_bar.canvas.before.clear()
         with self.progress_bar.canvas.before:
             Color(0.15, 0.15, 0.15, 1)
@@ -127,7 +124,7 @@ class AnimatedSplashScreen(Screen):
         
         # Статус
         self.status_label = Label(
-            text='Инициализация...',
+            text='Загрузка...',
             font_name='SplashRegular',
             font_size=sp(11),
             color=(0.75, 0.75, 0.75, 0.9),
@@ -157,15 +154,22 @@ class AnimatedSplashScreen(Screen):
         # Запуск
         Clock.schedule_once(self._start, 0.1)
     
+    def on_enter(self):
+        """При входе на экран - скрываем клавиатуру"""
+        self._hide_keyboard()
+    
+    def _hide_keyboard(self):
+        """Скрываем клавиатуру"""
+        try:
+            Window.softinput_mode = 'below_target'
+            if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
+                self.main_app.code_input.focus = False
+        except:
+            pass
+    
     def _start(self, dt):
-        """Скрываем клавиатуру и запускаем анимацию"""
-        # Отключаем клавиатуру на время заставки
-        Window.softinput_mode = 'below_target'
-        
-        # Убираем фокус с любых полей ввода
-        if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
-            self.main_app.code_input.focus = False
-        
+        """Запуск анимации"""
+        self._hide_keyboard()
         self._start_animations()
     
     def _start_animations(self):

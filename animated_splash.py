@@ -1,7 +1,6 @@
 """
 Animated splash screen - Custom colors
-Background: (0.188, 0.204, 0.251, 1) - тёмно-синий
-Text color: (0.596, 0.486, 1.0, 1) - фиолетовый
+Keyboard completely disabled
 """
 import os
 from kivy.uix.screenmanager import Screen, SlideTransition
@@ -18,8 +17,9 @@ from kivy.config import Config
 import threading
 import time
 
-# Отключаем автоматическое появление клавиатуры
+# Полное отключение клавиатуры
 Config.set('kivy', 'keyboard_mode', 'systemandmulti')
+Config.set('kivy', 'keyboard_layout', 'qwerty')
 
 # ========== ЦВЕТА ==========
 BG_COLOR = (0.188, 0.204, 0.251, 1)  # Тёмно-синий фон
@@ -43,21 +43,18 @@ if os.path.exists(regular_font_path):
 
 
 class CustomProgressBar(Widget):
-    """Кастомный прогресс-бар (без конфликта имён)"""
-    def __init__(self, max=100, **kwargs):
+    """Кастомный прогресс-бар"""
+    def __init__(self, max_val=100, **kwargs):
         super().__init__(**kwargs)
-        self.max_value = max
+        self.max_value = max_val
         self._value = 0
         self.size_hint = (0.6, None)
         self.height = dp(3)
         self.pos_hint = {'center_x': 0.5}
         
         with self.canvas:
-            # Фон прогресс-бара
             Color(*PROGRESS_BG)
             self.bg = Rectangle(pos=self.pos, size=self.size)
-            
-            # Заливка прогресс-бара (фиолетовая)
             Color(*PROGRESS_FILL)
             self.fill = Rectangle(pos=self.pos, size=(0, self.height))
         
@@ -80,7 +77,7 @@ class CustomProgressBar(Widget):
 
 
 class AnimatedSplashScreen(Screen):
-    """Анимированная заставка с кастомными цветами"""
+    """Анимированная заставка - клавиатура полностью отключена"""
     
     def __init__(self, main_app, **kwargs):
         super().__init__(**kwargs)
@@ -88,7 +85,7 @@ class AnimatedSplashScreen(Screen):
         self.name = 'splash'
         self.loading_complete = False
         
-        # Фон (тёмно-синий)
+        # Фон
         with self.canvas.before:
             Color(*BG_COLOR)
             self.bg_rect = Rectangle(pos=self.pos, size=self.size)
@@ -102,10 +99,9 @@ class AnimatedSplashScreen(Screen):
             spacing=dp(25)
         )
         
-        # Растягиваем для центрирования
         layout.add_widget(Widget(size_hint_y=0.2))
         
-        # ===== TITLE (фиолетовый текст) =====
+        # TITLE
         title_font = 'SplashTitle' if os.path.exists(bold_font_path) else 'Roboto'
         
         self.title_label = Label(
@@ -123,7 +119,7 @@ class AnimatedSplashScreen(Screen):
         )
         layout.add_widget(self.title_label)
         
-        # ===== SUBTITLE (светло-фиолетовый) =====
+        # SUBTITLE
         subtitle_font = 'SplashRegular' if os.path.exists(regular_font_path) else 'Roboto'
         
         self.subtitle_label = Label(
@@ -137,11 +133,11 @@ class AnimatedSplashScreen(Screen):
         )
         layout.add_widget(self.subtitle_label)
         
-        # ===== ПРОГРЕСС-БАР (кастомный) =====
-        self.progress_bar = CustomProgressBar(max=100)
+        # PROGRESS BAR
+        self.progress_bar = CustomProgressBar(max_val=100)
         layout.add_widget(self.progress_bar)
         
-        # ===== ТЕКСТ СТАТУСА =====
+        # STATUS TEXT
         self.status_label = Label(
             text='Loading...',
             font_name='Roboto',
@@ -153,7 +149,7 @@ class AnimatedSplashScreen(Screen):
         )
         layout.add_widget(self.status_label)
         
-        # ===== АНИМИРОВАННЫЕ ТОЧКИ =====
+        # DOTS
         self.dots_label = Label(
             text='',
             font_name='Roboto',
@@ -169,24 +165,67 @@ class AnimatedSplashScreen(Screen):
         
         self.add_widget(layout)
         
-        # Блокируем клавиатуру
-        self._block_keyboard()
+        # Жёсткая блокировка клавиатуры
+        self._block_keyboard_forever()
         
         # Запуск
-        Clock.schedule_once(self._start, 0.1)
+        Clock.schedule_once(self._start, 0.05)
     
-    def _block_keyboard(self):
-        """Блокируем клавиатуру"""
+    def _block_keyboard_forever(self):
+        """Полная и необратимая блокировка клавиатуры"""
         try:
+            # Отключаем мягкий ввод
             Window.softinput_mode = 'pan'
+            
+            # Убираем фокус со всего
             if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
                 self.main_app.code_input.focus = False
+                self.main_app.code_input.focus_mode = 'none'
                 self.main_app.code_input.disabled = True
-        except:
-            pass
+            
+            if hasattr(self.main_app, 'action_bar'):
+                if hasattr(self.main_app.action_bar, 'text_input'):
+                    if self.main_app.action_bar.text_input:
+                        self.main_app.action_bar.text_input.focus = False
+            
+            # Запрещаем любые текстовые поля получать фокус
+            Window.focus = False
+            
+            # Через Android API
+            try:
+                from jnius import autoclass
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                activity = PythonActivity.mActivity
+                InputMethodManager = autoclass('android.view.inputmethod.InputMethodManager')
+                imm = activity.getSystemService('input_method')
+                current_focus = activity.getCurrentFocus()
+                if current_focus:
+                    imm.hideSoftInputFromWindow(current_focus.getWindowToken(), 0)
+                # Убираем возможность показывать клавиатуру
+                activity.getWindow().setSoftInputMode(2)  # SOFT_INPUT_STATE_ALWAYS_HIDDEN
+            except:
+                pass
+        except Exception as e:
+            print(f"Keyboard block error: {e}")
+    
+    def on_pre_enter(self):
+        """До входа на экран - блокируем клавиатуру"""
+        self._block_keyboard_forever()
+    
+    def on_enter(self):
+        """При входе - ещё раз блокируем"""
+        self._block_keyboard_forever()
     
     def on_touch_down(self, touch):
         """Перехватываем все касания"""
+        return True
+    
+    def on_touch_move(self, touch):
+        """Перехватываем движения"""
+        return True
+    
+    def on_touch_up(self, touch):
+        """Перехватываем отпускания"""
         return True
     
     def _update_bg(self, instance, value):
@@ -199,17 +238,14 @@ class AnimatedSplashScreen(Screen):
         threading.Thread(target=self._load_resources, daemon=True).start()
     
     def _start_animations(self):
-        # Анимация появления заголовка
         anim = Animation(opacity=1, duration=0.6)
         self.title_label.opacity = 0
         anim.start(self.title_label)
         
-        # Пульсация подзаголовка
         pulse = Animation(opacity=0.5, duration=1) + Animation(opacity=0.9, duration=1)
         pulse.repeat = True
         pulse.start(self.subtitle_label)
         
-        # Анимация точек
         self._animate_dots()
     
     def _animate_dots(self, count=0):
@@ -254,9 +290,14 @@ class AnimatedSplashScreen(Screen):
             Clock.schedule_once(self._go_to_main, 0.5)
     
     def _go_to_main(self, dt):
-        # Восстанавливаем текстовое поле
-        if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
-            self.main_app.code_input.disabled = False
+        # Восстанавливаем клавиатуру
+        try:
+            Window.softinput_mode = ''
+            if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
+                self.main_app.code_input.disabled = False
+                self.main_app.code_input.focus_mode = 'focus'
+        except:
+            pass
         
         self.manager.transition = SlideTransition(direction='left', duration=0.4)
         self.manager.current = 'main'

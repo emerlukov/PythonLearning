@@ -1,56 +1,86 @@
 """
-Анимированная заставка с прогресс-баром - Чёрно-белая версия
+Animated splash screen - Custom colors
+Background: (0.188, 0.204, 0.251, 1) - тёмно-синий
+Text color: (0.596, 0.486, 1.0, 1) - фиолетовый
 """
 import os
 from kivy.uix.screenmanager import Screen, SlideTransition
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.progressbar import ProgressBar
 from kivy.uix.label import Label
+from kivy.uix.widget import Widget
 from kivy.animation import Animation
 from kivy.clock import Clock
-from kivy.graphics import Color, Rectangle, RoundedRectangle
+from kivy.graphics import Color, Rectangle
 from kivy.core.window import Window
 from kivy.metrics import dp, sp
 from kivy.core.text import LabelBase
+from kivy.config import Config
 import threading
 import time
 
-# ========== РЕГИСТРАЦИЯ ШРИФТОВ ==========
-# Получаем путь к папке fonts относительно текущего файла
+# Отключаем автоматическое появление клавиатуры
+Config.set('kivy', 'keyboard_mode', 'systemandmulti')
+
+# ========== ЦВЕТА ==========
+BG_COLOR = (0.188, 0.204, 0.251, 1)  # Тёмно-синий фон
+TEXT_COLOR = (0.596, 0.486, 1.0, 1)   # Фиолетовый текст
+SUB_COLOR = (0.7, 0.65, 0.9, 0.9)     # Светло-фиолетовый для подзаголовка
+PROGRESS_BG = (0.25, 0.27, 0.32, 1)   # Тёмный фон для прогресс-бара
+PROGRESS_FILL = (0.596, 0.486, 1.0, 1) # Фиолетовая заливка
+STATUS_COLOR = (0.65, 0.6, 0.85, 0.8) # Статус текст
+
+# ========== FONT REGISTRATION ==========
 current_dir = os.path.dirname(os.path.abspath(__file__))
 fonts_dir = os.path.join(current_dir, 'fonts')
 
-print(f"Looking for fonts in: {fonts_dir}")
-
-# Регистрируем жирный шрифт (SourceSansPro-Bold.ttf)
 bold_font_path = os.path.join(fonts_dir, 'SourceSansPro-Bold.ttf')
 if os.path.exists(bold_font_path):
     LabelBase.register(name='SplashTitle', fn_regular=bold_font_path)
-    print(f"✅ Registered SplashTitle from: {bold_font_path}")
-else:
-    print(f"❌ Font not found: {bold_font_path}")
-    # Вместо Roboto используем стандартный шрифт Kivy
-    # Не регистрируем ничего, будем использовать 'Roboto' который уже есть в Kivy
-    pass
 
-# Регистрируем обычный шрифт (NotoSans-Regular.ttf)
 regular_font_path = os.path.join(fonts_dir, 'NotoSans-Regular.ttf')
 if os.path.exists(regular_font_path):
     LabelBase.register(name='SplashRegular', fn_regular=regular_font_path)
-    print(f"✅ Registered SplashRegular from: {regular_font_path}")
-else:
-    print(f"❌ Font not found: {regular_font_path}")
-    # Не регистрируем ничего
 
-# Также пробуем DejaVuSans как запасной
-dejavu_font_path = os.path.join(fonts_dir, 'DejaVuSans.ttf')
-if os.path.exists(dejavu_font_path):
-    LabelBase.register(name='DejaVuSans', fn_regular=dejavu_font_path)
-    print(f"✅ Registered DejaVuSans from: {dejavu_font_path}")
+
+class CustomProgressBar(Widget):
+    """Кастомный прогресс-бар (без конфликта имён)"""
+    def __init__(self, max=100, **kwargs):
+        super().__init__(**kwargs)
+        self.max_value = max
+        self._value = 0
+        self.size_hint = (0.6, None)
+        self.height = dp(3)
+        self.pos_hint = {'center_x': 0.5}
+        
+        with self.canvas:
+            # Фон прогресс-бара
+            Color(*PROGRESS_BG)
+            self.bg = Rectangle(pos=self.pos, size=self.size)
+            
+            # Заливка прогресс-бара (фиолетовая)
+            Color(*PROGRESS_FILL)
+            self.fill = Rectangle(pos=self.pos, size=(0, self.height))
+        
+        self.bind(pos=self._update_rects, size=self._update_rects)
+    
+    def _update_rects(self, instance, value):
+        self.bg.pos = self.pos
+        self.bg.size = self.size
+        self.fill.pos = self.pos
+        self.fill.size = ((self.width * self._value / self.max_value), self.height)
+    
+    @property
+    def value(self):
+        return self._value
+    
+    @value.setter
+    def value(self, value):
+        self._value = min(value, self.max_value)
+        self.fill.size = ((self.width * self._value / self.max_value), self.height)
 
 
 class AnimatedSplashScreen(Screen):
-    """Третья заставка - анимированная с прогресс-баром"""
+    """Анимированная заставка с кастомными цветами"""
     
     def __init__(self, main_app, **kwargs):
         super().__init__(**kwargs)
@@ -58,103 +88,65 @@ class AnimatedSplashScreen(Screen):
         self.name = 'splash'
         self.loading_complete = False
         
-        # Чёрно-белая гамма
+        # Фон (тёмно-синий)
         with self.canvas.before:
-            Color(0, 0, 0, 1)  # Чёрный фон
+            Color(*BG_COLOR)
             self.bg_rect = Rectangle(pos=self.pos, size=self.size)
-            
-            # Едва заметный декоративный круг
-            Color(0.12, 0.12, 0.12, 0.3)
-            self.circle_bg = RoundedRectangle(
-                pos=(self.center_x - dp(150), self.y - dp(50)),
-                size=(dp(300), dp(300)),
-                radius=[dp(150)]
-            )
         
-        self.bind(pos=self._update_graphics, size=self._update_graphics)
+        self.bind(pos=self._update_bg, size=self._update_bg)
         
-        # Основной layout
+        # Main layout
         layout = BoxLayout(
             orientation='vertical',
             padding=[dp(30), dp(60), dp(30), dp(60)],
-            spacing=dp(20)
+            spacing=dp(25)
         )
         
-        top_spacer = BoxLayout(size_hint_y=0.15)
-        layout.add_widget(top_spacer)
+        # Растягиваем для центрирования
+        layout.add_widget(Widget(size_hint_y=0.2))
         
-        # ===== НАЗВАНИЕ =====
-        # Определяем какой шрифт использовать
+        # ===== TITLE (фиолетовый текст) =====
         title_font = 'SplashTitle' if os.path.exists(bold_font_path) else 'Roboto'
         
         self.title_label = Label(
             text='[b]Python[/b]\nLearning IDE',
             markup=True,
             font_name=title_font,
-            font_size=sp(30),
-            color=(1, 1, 1, 1),
+            font_size=sp(34),
+            color=TEXT_COLOR,
             halign='center',
             valign='middle',
-            size_hint=(1, 0.35)
+            size_hint=(1, 0.3)
         )
         self.title_label.bind(
             width=lambda inst, val: setattr(inst, 'text_size', (val, None))
         )
         layout.add_widget(self.title_label)
         
-        # ===== ПОДЗАГОЛОВОК =====
+        # ===== SUBTITLE (светло-фиолетовый) =====
         subtitle_font = 'SplashRegular' if os.path.exists(regular_font_path) else 'Roboto'
         
         self.subtitle_label = Label(
             text='Learn Python on Android',
             font_name=subtitle_font,
-            font_size=sp(12),
-            color=(0.75, 0.75, 0.75, 0.9),
+            font_size=sp(14),
+            color=SUB_COLOR,
             halign='center',
             valign='top',
             size_hint=(1, 0.1)
         )
         layout.add_widget(self.subtitle_label)
         
-        # ===== ПРОГРЕСС-БАР =====
-        progress_container = BoxLayout(
-            size_hint=(0.7, 0.06),
-            pos_hint={'center_x': 0.5}
-        )
+        # ===== ПРОГРЕСС-БАР (кастомный) =====
+        self.progress_bar = CustomProgressBar(max=100)
+        layout.add_widget(self.progress_bar)
         
-        self.progress_bar = ProgressBar(max=100, value=0, size_hint=(1, 1))
-        
-        # Стилизация прогресс-бара
-        self.progress_bar.canvas.before.clear()
-        with self.progress_bar.canvas.before:
-            Color(0.15, 0.15, 0.15, 1)
-            self.progress_bg = RoundedRectangle(
-                pos=self.progress_bar.pos,
-                size=self.progress_bar.size,
-                radius=[dp(4)]
-            )
-        
-        self.progress_bar.canvas.after.clear()
-        with self.progress_bar.canvas.after:
-            Color(1, 1, 1, 1)
-            self.progress_rect = RoundedRectangle(
-                pos=self.progress_bar.pos,
-                size=(self.progress_bar.width * (self.progress_bar.value / 100), self.progress_bar.height),
-                radius=[dp(4)]
-            )
-        
-        self.progress_bar.bind(pos=self._update_progress_rect, size=self._update_progress_rect)
-        self.progress_bar.bind(value=self._update_progress_value)
-        
-        progress_container.add_widget(self.progress_bar)
-        layout.add_widget(progress_container)
-        
-        # ===== СТАТУС =====
+        # ===== ТЕКСТ СТАТУСА =====
         self.status_label = Label(
-            text='Загрузка...',
+            text='Loading...',
             font_name='Roboto',
             font_size=sp(11),
-            color=(0.75, 0.75, 0.75, 0.9),
+            color=STATUS_COLOR,
             halign='center',
             valign='middle',
             size_hint=(1, 0.08)
@@ -166,70 +158,73 @@ class AnimatedSplashScreen(Screen):
             text='',
             font_name='Roboto',
             font_size=sp(16),
-            color=(0.7, 0.7, 0.7, 0.6),
+            color=SUB_COLOR,
             halign='center',
             valign='middle',
             size_hint=(1, 0.08)
         )
         layout.add_widget(self.dots_label)
         
-        bottom_spacer = BoxLayout(size_hint_y=0.15)
-        layout.add_widget(bottom_spacer)
+        layout.add_widget(Widget(size_hint_y=0.2))
         
         self.add_widget(layout)
+        
+        # Блокируем клавиатуру
+        self._block_keyboard()
         
         # Запуск
         Clock.schedule_once(self._start, 0.1)
     
-    def on_enter(self):
-        """При входе на экран - скрываем клавиатуру"""
-        self._hide_keyboard()
-    
-    def _hide_keyboard(self):
-        """Скрываем клавиатуру"""
+    def _block_keyboard(self):
+        """Блокируем клавиатуру"""
         try:
-            Window.softinput_mode = 'below_target'
+            Window.softinput_mode = 'pan'
             if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
                 self.main_app.code_input.focus = False
+                self.main_app.code_input.disabled = True
         except:
             pass
     
+    def on_touch_down(self, touch):
+        """Перехватываем все касания"""
+        return True
+    
+    def _update_bg(self, instance, value):
+        if hasattr(self, 'bg_rect'):
+            self.bg_rect.pos = instance.pos
+            self.bg_rect.size = instance.size
+    
     def _start(self, dt):
-        """Запуск анимации"""
-        self._hide_keyboard()
         self._start_animations()
+        threading.Thread(target=self._load_resources, daemon=True).start()
     
     def _start_animations(self):
-        """Анимации"""
-        # Анимация появления
-        anim = Animation(opacity=1, duration=0.5)
+        # Анимация появления заголовка
+        anim = Animation(opacity=1, duration=0.6)
         self.title_label.opacity = 0
         anim.start(self.title_label)
         
-        pulse = Animation(opacity=0.4, duration=1) + Animation(opacity=0.7, duration=1)
+        # Пульсация подзаголовка
+        pulse = Animation(opacity=0.5, duration=1) + Animation(opacity=0.9, duration=1)
         pulse.repeat = True
         pulse.start(self.subtitle_label)
         
+        # Анимация точек
         self._animate_dots()
-        Clock.schedule_once(self._start_loading, 0.8)
     
     def _animate_dots(self, count=0):
-        dots = ['.', '..', '...', '']
+        dots = ['.  ', '.. ', '...', '   ']
         self.dots_label.text = dots[count % len(dots)]
-        Clock.schedule_once(lambda dt: self._animate_dots(count + 1), 0.6)
-    
-    def _start_loading(self, dt):
-        threading.Thread(target=self._load_resources, daemon=True).start()
+        Clock.schedule_once(lambda dt: self._animate_dots(count + 1), 0.5)
     
     def _load_resources(self):
         steps = [
-            (10, "Загрузка шрифтов..."),
-            (10, "Инициализация..."),
-            (15, "Настройка редактора..."),
-            (20, "Загрузка тем..."),
-            (20, "Подготовка примеров..."),
-            (15, "Финальная подготовка..."),
-            (10, "Запуск!"),
+            (10, "Loading fonts..."),
+            (15, "Initializing..."),
+            (20, "Setting up editor..."),
+            (20, "Loading themes..."),
+            (20, "Preparing examples..."),
+            (15, "Starting!"),
         ]
         
         current = 0
@@ -253,44 +248,18 @@ class AnimatedSplashScreen(Screen):
     def _finish(self, dt):
         if not self.loading_complete:
             self.loading_complete = True
-            self.status_label.text = "Готово!"
+            self.status_label.text = "Ready!"
             fade = Animation(opacity=0, duration=0.4)
             fade.start(self)
             Clock.schedule_once(self._go_to_main, 0.5)
     
     def _go_to_main(self, dt):
-        # Восстанавливаем клавиатуру
-        Window.softinput_mode = ''
+        # Восстанавливаем текстовое поле
+        if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
+            self.main_app.code_input.disabled = False
         
         self.manager.transition = SlideTransition(direction='left', duration=0.4)
         self.manager.current = 'main'
         
         if hasattr(self.main_app, 'on_splash_finished'):
             self.main_app.on_splash_finished()
-    
-    def _update_graphics(self, instance, value):
-        if hasattr(self, 'bg_rect'):
-            self.bg_rect.pos = instance.pos
-            self.bg_rect.size = instance.size
-        if hasattr(self, 'circle_bg'):
-            self.circle_bg.pos = (self.center_x - dp(150), self.y - dp(50))
-    
-    def _update_progress_rect(self, instance, value):
-        if hasattr(self, 'progress_rect'):
-            self.progress_rect.pos = instance.pos
-            self.progress_rect.size = (
-                instance.width * (instance.value / 100),
-                instance.height
-            )
-    
-    def _update_progress_value(self, instance, value):
-        if hasattr(self, 'progress_rect'):
-            self.progress_rect.size = (
-                instance.width * (value / 100),
-                instance.height
-            )
-
-
-
-
-

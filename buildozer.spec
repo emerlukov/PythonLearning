@@ -5,7 +5,7 @@ package.name = pythonlearningide
 package.domain = com.emerlukov
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,json,txt,md,otf
-source.include_dirs = fonts,src
+source.include_dirs = fonts
 source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv,.github
 source.exclude_patterns = *.pyc,*.pyo
 version = 3.4.0
@@ -34,9 +34,9 @@ android.statusbar_color = #FFFFFF
 android.navigationbar_color = #FFFFFF
 android.allow_backup = True
 
-# ========== КЛЮЧЕВОЕ: добавляем ресурсы с темой ==========
-android.add_src = src
-android.apptheme = @style/AppTheme
+# НЕ ИСПОЛЬЗУЕМ КАСТОМНЫЕ ТЕМЫ
+# android.apptheme = @style/AppTheme
+# android.add_src = src
 
 entrypoint = main.py
 source.main = main.py

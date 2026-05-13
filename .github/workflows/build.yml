@@ -27,24 +27,21 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses-dev libtinfo6 \
             cmake libffi-dev libssl-dev automake autopoint gettext libltdl-dev
 
-      - name: Install Buildozer & dependencies
+      - name: Install Buildozer
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          # Устанавливаем конкретные версии для большей предсказуемости
           pip install buildozer==1.5.0 cython==0.29.36
 
-      - name: Clean previous builds (optional)
+      - name: Clean previous builds
         run: |
           rm -rf .buildozer bin/
           echo "✓ Cleaned"
 
-      - name: Build APK with Buildozer
+      - name: Create fonts directory if not exists
+        run: |
+          mkdir -p fonts
+          echo "✓ Fonts directory ready"
+
+      - name: Build APK
         run: |
           buildozer -v android debug
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Python-Learning-IDE-APK
-          path: bin/*.apk
-          if-no-files-found: error  # Лучше дать ошибку, если APK не найден

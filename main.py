@@ -92,6 +92,8 @@ from kivy.properties import ColorProperty, ListProperty, StringProperty
 from kivy.lang import Builder
 from kivy.utils import platform
 from kivy.metrics import dp, sp
+from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
+from animated_splash import AnimatedSplashScreen  # Импорт нашей заставки
 
 # ====================== ГЛОБАЛЬНЫЙ ФЛАГ ОТЛАДКИ ======================
 DEBUG = True
@@ -4355,6 +4357,7 @@ class PythonLearningApp(MDApp):
         ThemeManager.apply_saved_theme()
         ThemeManager.register(self)
         self._load_api_key_async()
+        self.splash_finished = False
 
     def _load_language(self):
         try:
@@ -4375,32 +4378,64 @@ class PythonLearningApp(MDApp):
         return 'en'
 
     def build(self):
+        # Сохраняем основной интерфейс в отдельный метод
+        main_widget = self._create_main_widget()
+        
+        # Создаём ScreenManager
+        sm = ScreenManager()
+        
+        # Добавляем анимированную заставку
+        splash = AnimatedSplashScreen(self, name='splash')
+        sm.add_widget(splash)
+        
+        # Добавляем главный экран
+        main_screen = Screen(name='main')
+        main_screen.add_widget(main_widget)
+        sm.add_widget(main_screen)
+        
+        # Стартуем с заставки
+        sm.current = 'splash'
+        
+        return sm
+    
+    def _create_main_widget(self):
+        """Переносим сюда ВЕСЬ код из старого метода build()"""
+        # СКОПИРУЙТЕ СЮДА ВЕСЬ КОД ИЗ build()
+        # (от self._load_fonts() до return root_layout)
+        
         self._load_fonts()
         self._request_android_permissions()
-        #self._request_permissions()
         self._request_storage_permission()
         Window.keyboard_anim_args = {'d': 0.2, 't': 'in_out_quad'}
         Window.bind(on_key_down=self._keyboard_handler)
         theme = ThemeManager.get_theme()
         main_layout = BoxLayout(orientation='vertical', padding=dp(3), spacing=dp(3))
+        
         with main_layout.canvas.before:
             self.bg_color = Color(*theme['app_bg'])
             self.bg_rect = Rectangle(size=main_layout.size, pos=main_layout.pos)
         main_layout.bind(size=self._update_bg, pos=self._update_bg)
+        
         self.top_bar = self._create_top_bar(theme)
         main_layout.add_widget(self.top_bar)
+        
         self.action_bar = MyActionBar(None)
         self.action_bar.app = self
         main_layout.add_widget(self.action_bar)
+        
         self.symbol_bar = MySymbolScrollBar(None)
         self.symbol_bar.app = self
         main_layout.add_widget(self.symbol_bar)
+        
         tab_bar = self.tab_manager.create_tab_bar(theme)
         main_layout.add_widget(tab_bar)
+        
         Clock.schedule_once(self._apply_saved_syntax_style, 0.5)
+        
         self.autocomplete = AutoCompleteWidget()
         self.autocomplete.code_input = None
         main_layout.add_widget(self.autocomplete)
+        
         tabs_loaded = self.tab_manager.load_all_tabs()
         if not tabs_loaded:
             self.editor = self.tab_manager.add_tab(title=self.tr.get('untitled_tab', 'New'), text="")
@@ -4462,48 +4497,60 @@ class PythonLearningApp(MDApp):
                     pass
             Clock.schedule_once(set_cursor_to_first_line, 0.5)
             Clock.schedule_once(set_cursor_to_first_line, 0.7)
+        
         self.editor_container = BoxLayout()
         self.editor_container.add_widget(self.editor)
         main_layout.add_widget(self.editor_container)
+        
         self._setup_autosave()
         self._ui_ready = True
         self._process_pending_operations()
+        
         main_layout.bind(on_touch_down=self._on_main_touch_down)
         Clock.schedule_once(self._apply_saved_syntax_style, 0.5)
+        
         root_layout = FloatLayout()
         root_layout.add_widget(main_layout)
+        
         from kivymd.uix.label import MDIcon
         from kivy.uix.behaviors import ButtonBehavior
         run_btn_size = dp(67)
         margin_right = dp(8)
         margin_bottom = dp(67)
+        
         class RunButton(ButtonBehavior, FloatLayout):
             pass
+        
         self.run_btn = RunButton(size_hint=(None, None), size=(run_btn_size, run_btn_size))
         self.run_btn.always_release = True
+        
         if theme.get('name') == 'dark':
             bg_color = theme.get('run_btn_bg', (0.85, 0.88, 0.90, 1))
             icon_color = theme.get('run_btn_text', (0.18, 0.18, 0.19, 1))
         else:
             bg_color = theme.get('run_btn_bg', (0.596, 0.486, 1.0, 1))
             icon_color = theme.get('run_btn_text', (0, 0, 0, 1))
+        
         def draw_round_btn(btn, *args):
             btn.canvas.before.clear()
             with btn.canvas.before:
                 Color(*bg_color)
                 Ellipse(pos=btn.pos, size=btn.size)
+        
         self.run_btn.bind(pos=draw_round_btn, size=draw_round_btn)
         play_icon = MDIcon(icon='play', font_size=f"{dp(23)}sp", theme_text_color="Custom", text_color=icon_color, pos_hint={"center_x": 0.5, "center_y": 0.5})
         self.run_btn.add_widget(play_icon)
+        
         def set_btn_pos(instance, value):
             x = root_layout.width - run_btn_size - margin_right
             y = margin_bottom
             self.run_btn.pos = (x, y)
+        
         root_layout.bind(size=set_btn_pos, pos=set_btn_pos)
         Clock.schedule_once(lambda dt: set_btn_pos(None, None), 0.3)
-        self.run_btn.bind(on_press=lambda btn: self.run_code(btn))
-        self.run_btn.bind(on_press=lambda btn: print("DEBUG: Run button pressed!"))
+        self.run_btn.bind(on_press=self.run_code)
         root_layout.add_widget(self.run_btn)
+        
         if platform == 'android':
             def lock_window_position(dt):
                 try:
@@ -4514,8 +4561,15 @@ class PythonLearningApp(MDApp):
             Clock.schedule_once(lock_window_position, 0.2)
             Clock.schedule_once(lock_window_position, 0.5)
             Clock.schedule_once(lock_window_position, 1.0)
+        
         Clock.schedule_once(self._fix_layout_on_start, 0.5)
+        
         return root_layout
+    
+    def on_splash_finished(self):
+        """Вызывается, когда заставка завершила работу"""
+        self.splash_finished = True
+        print("✅ Splash screen finished, app ready")
     
     def _request_android_permissions(self):
         """Запрос разрешений на чистом Android."""
@@ -4529,6 +4583,11 @@ class PythonLearningApp(MDApp):
             pass
 
     def on_start(self):
+        if not self.splash_finished:
+            # Если заставка ещё не завершена, ждём
+            Clock.schedule_once(lambda dt: self.on_start(), 0.5)
+            return
+        
         Window.clearcolor = ThemeManager.get_theme()['window_bg']
         self._update_ui_language()
         if self._restore_on_start:
@@ -6197,51 +6256,3 @@ if __name__ == '__main__':
         except:
             pass
         raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

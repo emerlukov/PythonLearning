@@ -76,7 +76,7 @@ class CustomProgressBar(Widget):
 
 
 class AnimatedSplashScreen(Screen):
-    """Анимированная заставка - с исправлением дёрганья клавиатуры"""
+    """Анимированная заставка - исправлено дёрганье клавиатуры"""
     
     def __init__(self, main_app, **kwargs):
         super().__init__(**kwargs)
@@ -84,7 +84,7 @@ class AnimatedSplashScreen(Screen):
         self.name = 'splash'
         self.loading_complete = False
         
-        # Защита от ресайза окна во время сплеша
+        # Защита от дёрганья клавиатуры (блокируем ресайз окна)
         Window.bind(on_resize=self._on_window_resize)
         
         # Фон
@@ -167,20 +167,20 @@ class AnimatedSplashScreen(Screen):
         
         self.add_widget(layout)
         
-        # Минимальное отключение
+        # Минимальное отключение клавиатуры
         self._disable_keyboard()
         
-        # Запуск с небольшой задержкой
-        Clock.schedule_once(self._start, 0.15)
+        # Запуск
+        Clock.schedule_once(self._start, 0.1)
     
     def _on_window_resize(self, window, width, height):
-        """Блокируем изменение размера окна во время splash"""
-        if not self.loading_complete:
+        """Блокируем изменение размера окна во время splash (убирает дёрганье)"""
+        if not getattr(self, 'loading_complete', False):
             return True  # отменяем ресайз
         return False
     
     def _disable_keyboard(self):
-        """Только отключаем фокус — без смены softinput_mode"""
+        """Только отключаем фокус — без агрессивного изменения softinput_mode"""
         try:
             if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
                 self.main_app.code_input.focus = False
@@ -192,7 +192,8 @@ class AnimatedSplashScreen(Screen):
         self._disable_keyboard()
     
     def on_touch_down(self, touch):
-        return True  # блокируем касания
+        """Игнорируем все касания на splash"""
+        return True
     
     def _update_bg(self, instance, value):
         if hasattr(self, 'bg_rect'):
@@ -200,14 +201,18 @@ class AnimatedSplashScreen(Screen):
             self.bg_rect.size = instance.size
     
     def _start(self, dt):
-        Clock.schedule_once(self._start_animations, 0.25)   # задержка для стабильности
+        """Запуск анимаций и загрузки"""
+        Clock.schedule_once(self._start_animations, 0.25)
         threading.Thread(target=self._load_resources, daemon=True).start()
     
-    def _start_animations(self):
+    def _start_animations(self, dt=None):
+        """Анимации заголовка и подзаголовка"""
+        # Появление заголовка
         anim = Animation(opacity=1, duration=0.6)
         self.title_label.opacity = 0
         anim.start(self.title_label)
         
+        # Пульсация подзаголовка
         pulse = Animation(opacity=0.5, duration=1) + Animation(opacity=0.9, duration=1)
         pulse.repeat = True
         pulse.start(self.subtitle_label)
@@ -220,7 +225,6 @@ class AnimatedSplashScreen(Screen):
         Clock.schedule_once(lambda dt: self._animate_dots(count + 1), 0.5)
     
     def _load_resources(self):
-        # ... (твой код загрузки без изменений)
         steps = [
             (10, "Loading fonts..."),
             (15, "Initializing..."),

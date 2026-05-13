@@ -6,21 +6,22 @@ package.domain = com.emerlukov
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,json,txt,md,otf
 source.include_dirs = fonts
-source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv
+source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv,.github
 source.exclude_patterns = *.pyc,*.pyo
 version = 3.4.0
 
 # ========== ЗАВИСИМОСТИ ==========
 requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0,plyer
 
-# ========== НАСТРОЙКИ ЗАСТАВКИ ==========
-# presplash - показывается до загрузки Kivy
-presplash.filename = splash.png
+# ========== СИСТЕМНАЯ ЗАСТАВКА Android (вместо иконки) ==========
+presplash.filename = splash.png      # ← Первая заставка (вместо иконки)
 presplash.color = #000000
 presplash.fadeout = False
 
-# Иконка приложения
+# ========== ИКОНКА ПРИЛОЖЕНИЯ ==========
 icon.filename = icon.png
+
+# ========== ОСНОВНЫЕ НАСТРОЙКИ ==========
 orientation = portrait
 fullscreen = 0
 

@@ -14,7 +14,7 @@ version = 3.4.0
 requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0,plyer
 
 # ========== СИСТЕМНАЯ ЗАСТАВКА Android (вместо иконки) ==========
-presplash.filename = splash.png      # ← Первая заставка (вместо иконки)
+presplash.filename = splash.png
 presplash.color = #000000
 presplash.fadeout = False
 

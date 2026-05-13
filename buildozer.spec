@@ -12,7 +12,6 @@ version = 3.4.0
 
 requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0,plyer
 
-# Системная заставка
 presplash.filename = splash.png
 presplash.color = #FFFFFF
 presplash.fadeout = False
@@ -35,9 +34,9 @@ android.statusbar_color = #FFFFFF
 android.navigationbar_color = #FFFFFF
 android.allow_backup = True
 
-# ========== КЛЮЧЕВОЕ: ТЕМА С БЕЛЫМ ФОНОМ ==========
-android.apptheme = @style/Theme.AppCompat.Light.NoActionBar
-android.window_background = #FFFFFF
+# ========== ИСПОЛЬЗУЕМ ВАШУ ТЕМУ ==========
+android.add_src = android_theme.xml
+android.apptheme = @style/AppTheme
 
 entrypoint = main.py
 source.main = main.py

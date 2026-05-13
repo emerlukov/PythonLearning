@@ -118,11 +118,14 @@ Config.set('graphics', 'maxfps', '30')
 Config.set('kivy', 'window_icon', '')
 Config.set('kivy', 'window_title', 'Python Learning IDE')
 Config.set('kivy', 'exit_on_escape', '0')
-Config.set('kivy', 'keyboard_mode', 'systemanddock')
-Config.set('kivy', 'default_font', 'SourceBold')
 
+# === ИСПРАВЛЕНИЕ ДЁРГАНЬЯ КЛАВИАТУРЫ ===
+Config.set('kivy', 'keyboard_mode', 'system')           # ← изменил
+Window.softinput_mode = 'below_target'                  # ← лучший режим для анимаций
+Window.keyboard_anim_args = {'d': 0, 't': 'linear'}     # отключаем анимацию клавиатуры
+
+Config.set('kivy', 'default_font', 'SourceBold')
 Window.allow_screensaver = True
-Window.softinput_mode = ''
 
 # ====================== ОТКЛЮЧЕНИЕ СТАНДАРТНЫХ СТИЛЕЙ ======================
 Builder.load_string('''

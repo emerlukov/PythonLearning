@@ -94,7 +94,6 @@ from kivy.utils import platform
 from kivy.metrics import dp, sp
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from animated_splash import AnimatedSplashScreen
-from presplash_screen import PresplashScreen
 
 # ====================== ГЛОБАЛЬНЫЙ ФЛАГ ОТЛАДКИ ======================
 DEBUG = True
@@ -4379,34 +4378,24 @@ class PythonLearningApp(MDApp):
         return 'en'
 
     def build(self):
-        # Сохраняем основной интерфейс в отдельный метод
+        # Сохраняем основной интерфейс
         main_widget = self._create_main_widget()
         
         # Создаём ScreenManager
         sm = ScreenManager()
         
-        # ===== ЗАСТАВКА №1 (системная) =====
-        # splash.png - уже настроена в buildozer.spec через presplash.filename
-        # Она показывается ДО загрузки Kivy, её не нужно добавлять в ScreenManager
-        
-        # ===== ЗАСТАВКА №2 (статическая) =====
-        # presplash.png - показываем сразу после загрузки Kivy
-        from presplash_screen import PresplashScreen
-        presplash = PresplashScreen(self, name='presplash')
-        sm.add_widget(presplash)
-        
-        # ===== ЗАСТАВКА №3 (анимированная) =====
+        # Анимированная заставка
         from animated_splash import AnimatedSplashScreen
         splash = AnimatedSplashScreen(self, name='splash')
         sm.add_widget(splash)
         
-        # ===== ГЛАВНЫЙ ЭКРАН =====
+        # Главный экран
         main_screen = Screen(name='main')
         main_screen.add_widget(main_widget)
         sm.add_widget(main_screen)
         
-        # Стартуем со второй заставки (presplash)
-        sm.current = 'presplash'
+        # Стартуем с заставки
+        sm.current = 'splash'
         
         return sm
     
@@ -6268,6 +6257,54 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

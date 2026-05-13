@@ -12,11 +12,12 @@ version = 3.4.0
 
 requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0,plyer
 
-# ТОЛЬКО ОДНА СИСТЕМНАЯ ЗАСТАВКА
+# Системная заставка (БЕЛЫЙ фон)
 presplash.filename = splash.png
-presplash.color = #000000
+presplash.color = #FFFFFF
 presplash.fadeout = False
 
+# Иконка приложения
 icon.filename = icon.png
 
 orientation = portrait
@@ -31,8 +32,8 @@ android.archs = arm64-v8a
 android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
 android.enable_androidx = True
 android.accept_sdk_license = True
-android.statusbar_color = #000000
-android.navigationbar_color = #000000
+android.statusbar_color = #FFFFFF
+android.navigationbar_color = #FFFFFF
 android.allow_backup = True
 
 entrypoint = main.py
@@ -54,3 +55,51 @@ log_level = 2
 [buildozer]
 log_level = 2
 warn_on_root = 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

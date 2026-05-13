@@ -1,6 +1,8 @@
 """
 Анимированная заставка с прогресс-баром
+Использует шрифты из папки fonts
 """
+import os
 from kivy.uix.screenmanager import Screen, SlideTransition
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.progressbar import ProgressBar
@@ -13,14 +15,38 @@ from kivy.core.text import LabelBase
 import threading
 import time
 
-# Регистрируем красивые шрифты для заставки
-try:
-    LabelBase.register(name='SplashTitle', fn_regular='/system/fonts/Roboto-Bold.ttf')
-    LabelBase.register(name='SplashRegular', fn_regular='/system/fonts/Roboto-Regular.ttf')
-except:
-    # Если системных нет, используем стандартные
-    LabelBase.register(name='SplashTitle', fn_regular='Roboto')
-    LabelBase.register(name='SplashRegular', fn_regular='Roboto')
+# Регистрируем шрифты из папки fonts
+fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
+
+# Регистрируем жирный шрифт для заголовка (SourceSansPro-Bold.ttf)
+bold_font_path = os.path.join(fonts_dir, 'SourceSansPro-Bold.ttf')
+if os.path.exists(bold_font_path):
+    LabelBase.register(name='SplashTitle', fn_regular=bold_font_path)
+else:
+    # Запасной вариант - используем любой доступный жирный шрифт
+    fallback_fonts = [
+        os.path.join(fonts_dir, 'JetBrainsMono.ttf'),
+        os.path.join(fonts_dir, 'FiraCode-Regular.ttf'),
+    ]
+    for font in fallback_fonts:
+        if os.path.exists(font):
+            LabelBase.register(name='SplashTitle', fn_regular=font)
+            break
+
+# Регистрируем обычный шрифт для текста (NotoSans-Regular.ttf)
+regular_font_path = os.path.join(fonts_dir, 'NotoSans-Regular.ttf')
+if os.path.exists(regular_font_path):
+    LabelBase.register(name='SplashRegular', fn_regular=regular_font_path)
+else:
+    # Запасной вариант
+    fallback_fonts = [
+        os.path.join(fonts_dir, 'DejaVuSans.ttf'),
+        os.path.join(fonts_dir, 'NotoSansMono.ttf'),
+    ]
+    for font in fallback_fonts:
+        if os.path.exists(font):
+            LabelBase.register(name='SplashRegular', fn_regular=font)
+            break
 
 
 class AnimatedSplashScreen(Screen):
@@ -89,11 +115,15 @@ class AnimatedSplashScreen(Screen):
         layout.add_widget(self.subtitle_label)
         
         # ===== Прогресс-бар с кастомным стилем =====
+        progress_container = BoxLayout(
+            size_hint=(0.8, 0.08),
+            pos_hint={'center_x': 0.5}
+        )
+        
         self.progress_bar = ProgressBar(
             max=100,
             value=0,
-            size_hint=(0.8, 0.05),
-            pos_hint={'center_x': 0.5}
+            size_hint=(1, 1)
         )
         
         # Кастомизируем цвет прогресс-бара
@@ -114,9 +144,11 @@ class AnimatedSplashScreen(Screen):
             )
         
         # Привязываем обновление прогресс-бара
-        self.progress_bar.bind(pos=self._update_progress_rect, size=self._update_progress_rect, value=self._update_progress_value)
+        self.progress_bar.bind(pos=self._update_progress_rect, size=self._update_progress_rect)
+        self.progress_bar.bind(value=self._update_progress_value)
         
-        layout.add_widget(self.progress_bar)
+        progress_container.add_widget(self.progress_bar)
+        layout.add_widget(progress_container)
         
         # ===== Текст статуса загрузки =====
         self.status_label = Label(
@@ -164,6 +196,10 @@ class AnimatedSplashScreen(Screen):
         """Обновляет позицию прямоугольника прогресса"""
         if hasattr(self, 'progress_rect'):
             self.progress_rect.pos = instance.pos
+            self.progress_rect.size = (
+                instance.width * (instance.value / 100),
+                instance.height
+            )
     
     def _update_progress_value(self, instance, value):
         """Обновляет ширину прямоугольника прогресса при изменении значения"""
@@ -206,16 +242,16 @@ class AnimatedSplashScreen(Screen):
         """Симулирует загрузку ресурсов (реально загружает то, что нужно)"""
         
         loading_steps = [
-            (5, "Загрузка шрифтов..."),
-            (10, "Инициализация настроек..."),
-            (5, "Проверка разрешений..."),
+            (8, "Загрузка шрифтов..."),
+            (7, "Инициализация настроек..."),
+            (10, "Проверка разрешений..."),
             (15, "Загрузка тем оформления..."),
-            (10, "Настройка редактора кода..."),
+            (12, "Настройка редактора кода..."),
             (15, "Загрузка примеров кода..."),
             (10, "Подготовка AI помощника..."),
-            (10, "Проверка обновлений..."),
-            (10, "Финальная подготовка..."),
-            (10, "Запуск приложения!")
+            (8, "Проверка обновлений..."),
+            (10, "Оптимизация интерфейса..."),
+            (5, "Финальная подготовка..."),
         ]
         
         current_value = 0
@@ -229,10 +265,13 @@ class AnimatedSplashScreen(Screen):
                 current_value += 1
                 if current_value <= 100:
                     Clock.schedule_once(lambda dt, v=current_value: self._set_progress(v), 0)
-                    time.sleep(0.03)  # Небольшая задержка для красивого эффекта
+                    time.sleep(0.02)  # Небольшая задержка для красивого эффекта
+        
+        # Убеждаемся, что прогресс достиг 100%
+        Clock.schedule_once(lambda dt: self._set_progress(100), 0)
         
         # Завершаем
-        Clock.schedule_once(self._finish_loading, 0.5)
+        Clock.schedule_once(self._finish_loading, 0.8)
     
     def _update_status(self, text):
         """Обновляет текст статуса"""
@@ -240,20 +279,20 @@ class AnimatedSplashScreen(Screen):
     
     def _set_progress(self, value):
         """Устанавливает значение прогресс-бара"""
-        self.progress_bar.value = value
+        self.progress_bar.value = min(value, 100)
     
     def _finish_loading(self, dt):
         """Завершает загрузку и переходит в главное приложение"""
         if not self.loading_complete:
             self.loading_complete = True
-            self.status_label.text = "Готово!"
+            self.status_label.text = "Готово! Запуск..."
             
             # Финальная анимация
-            fade_out = Animation(opacity=0, duration=0.5)
+            fade_out = Animation(opacity=0, duration=0.4)
             fade_out.start(self)
             
             # Переход на главный экран
-            Clock.schedule_once(self._go_to_main, 0.6)
+            Clock.schedule_once(self._go_to_main, 0.5)
     
     def _go_to_main(self, dt):
         """Переход на главный экран приложения"""
@@ -264,3 +303,51 @@ class AnimatedSplashScreen(Screen):
         # Уведомляем основное приложение
         if hasattr(self.main_app, 'on_splash_finished'):
             self.main_app.on_splash_finished()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

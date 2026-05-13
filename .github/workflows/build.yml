@@ -27,36 +27,24 @@ jobs:
             autoconf libtool pkg-config zlib1g-dev libncurses-dev libtinfo6 \
             cmake libffi-dev libssl-dev automake autopoint gettext libltdl-dev
 
-      - name: Install Buildozer
+      - name: Install Buildozer & dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip install buildozer cython==0.29.36
+          # Устанавливаем конкретные версии для большей предсказуемости
+          pip install buildozer==1.5.0 cython==0.29.36
 
-      - name: Clean builds
+      - name: Clean previous builds (optional)
         run: |
-          rm -rf \~/.buildozer .buildozer
-          buildozer -v android clean || true
+          rm -rf .buildozer bin/
+          echo "✓ Cleaned"
 
-      - name: Build APK with pip fix
+      - name: Build APK with Buildozer
         run: |
-          # Клонируем p4a вручную и патчим до запуска buildozer
-          mkdir -p .buildozer/android/platform
-          cd .buildozer/android/platform
-          git clone -b develop --single-branch https://github.com/kivy/python-for-android.git
-          cd python-for-android
-          
-          # Сильный патч
-          sed -i "s|pip install -U pip|pip install pip==24.3.1 --no-deps --force-reinstall|g" pythonforandroid/build.py
-          sed -i "s|'pip install -U pip'|'pip install pip==24.3.1 --no-deps --force-reinstall'|g" pythonforandroid/build.py
-          
-          echo "✅ p4a patched successfully"
-          cd ../../../..
-
           buildozer -v android debug
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Python-Learning-IDE-APK
           path: bin/*.apk
-          if-no-files-found: warn
+          if-no-files-found: error  # Лучше дать ошибку, если APK не найден

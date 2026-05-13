@@ -10,40 +10,44 @@ source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv
 source.exclude_patterns = *.pyc,*.pyo
 version = 3.4.0
 
-# ========== ГЛАВНОЕ ИСПРАВЛЕНИЕ ==========
-# Указываем конкретную версию kivymd, которая стабильно работает
+# ========== ЗАВИСИМОСТИ ==========
 requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0,plyer
 
-presplash.filename = presplash.png
+# ========== НАСТРОЙКИ ЗАСТАВКИ ==========
+# presplash - показывается до загрузки Kivy
+presplash.filename = splash.png
+presplash.color = #000000
+presplash.fadeout = False
+
+# Иконка приложения
 icon.filename = icon.png
 orientation = portrait
 fullscreen = 0
 
+# ========== ANDROID НАСТРОЙКИ ==========
 android.api = 33
 android.minapi = 24
 android.ndk_api = 24
 android.ndk = 25b
 android.archs = arm64-v8a,armeabi-v7a
 
-android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE
+android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
 android.enable_androidx = True
 android.accept_sdk_license = True
-android.statusbar_color = #121212
-android.navigationbar_color = #121212
+android.statusbar_color = #000000
+android.navigationbar_color = #000000
 android.allow_backup = True
-android.manifest.application_arguments = android:requestLegacyExternalStorage="true"
 
 entrypoint = main.py
 source.main = main.py
 android.copy_libs = 1
 
-# Важные настройки для стабильности
+# ========== НАСТРОЙКИ СТАБИЛЬНОСТИ ==========
 p4a.branch = develop
 p4a.hostpython_version = 3.10.7
 android.private_storage = True
 android.wakelock = False
 p4a.bootstrap = sdl2
-android.presplash_color = #121212
 android.release_artifact = apk
 android.debuggable = False
 package.full_name = Python Learning IDE

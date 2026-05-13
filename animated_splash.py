@@ -76,13 +76,16 @@ class CustomProgressBar(Widget):
 
 
 class AnimatedSplashScreen(Screen):
-    """Анимированная заставка - клавиатура полностью отключена"""
+    """Анимированная заставка - с исправлением дёрганья клавиатуры"""
     
     def __init__(self, main_app, **kwargs):
         super().__init__(**kwargs)
         self.main_app = main_app
         self.name = 'splash'
         self.loading_complete = False
+        
+        # Защита от ресайза окна во время сплеша
+        Window.bind(on_resize=self._on_window_resize)
         
         # Фон
         with self.canvas.before:
@@ -164,32 +167,32 @@ class AnimatedSplashScreen(Screen):
         
         self.add_widget(layout)
         
-        # НЕМЕДЛЕННО отключаем клавиатуру
+        # Минимальное отключение
         self._disable_keyboard()
         
-        # Запуск
-        Clock.schedule_once(self._start, 0.1)
+        # Запуск с небольшой задержкой
+        Clock.schedule_once(self._start, 0.15)
+    
+    def _on_window_resize(self, window, width, height):
+        """Блокируем изменение размера окна во время splash"""
+        if not self.loading_complete:
+            return True  # отменяем ресайз
+        return False
     
     def _disable_keyboard(self):
-        """Отключаем клавиатуру навсегда"""
+        """Только отключаем фокус — без смены softinput_mode"""
         try:
-            # Блокируем фокус
             if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
                 self.main_app.code_input.focus = False
                 self.main_app.code_input.disabled = True
-            
-            # Отключаем мягкий ввод
-            Window.softinput_mode = 'pan'
         except:
             pass
     
     def on_pre_enter(self):
-        """До входа - блокируем"""
         self._disable_keyboard()
     
     def on_touch_down(self, touch):
-        """Игнорируем все касания"""
-        return True
+        return True  # блокируем касания
     
     def _update_bg(self, instance, value):
         if hasattr(self, 'bg_rect'):
@@ -197,7 +200,7 @@ class AnimatedSplashScreen(Screen):
             self.bg_rect.size = instance.size
     
     def _start(self, dt):
-        self._start_animations()
+        Clock.schedule_once(self._start_animations, 0.25)   # задержка для стабильности
         threading.Thread(target=self._load_resources, daemon=True).start()
     
     def _start_animations(self):
@@ -217,6 +220,7 @@ class AnimatedSplashScreen(Screen):
         Clock.schedule_once(lambda dt: self._animate_dots(count + 1), 0.5)
     
     def _load_resources(self):
+        # ... (твой код загрузки без изменений)
         steps = [
             (10, "Loading fonts..."),
             (15, "Initializing..."),
@@ -253,15 +257,15 @@ class AnimatedSplashScreen(Screen):
             Clock.schedule_once(self._go_to_main, 0.5)
     
     def _go_to_main(self, dt):
-        # Восстанавливаем клавиатуру для основного приложения
+        """Переход на главный экран"""
         try:
             if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
                 self.main_app.code_input.disabled = False
-            Window.softinput_mode = ''
+                Window.softinput_mode = 'below_target'   # стабильный режим
         except:
             pass
         
-        self.manager.transition = SlideTransition(direction='left', duration=0.4)
+        self.manager.transition = SlideTransition(direction='left', duration=0.35)
         self.manager.current = 'main'
         
         if hasattr(self.main_app, 'on_splash_finished'):

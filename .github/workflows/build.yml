@@ -20,6 +20,41 @@ jobs:
         with:
           python-version: '3.10'
 
+      # ========== КЭШИРОВАНИЕ (УСКОРЕНИЕ) ==========
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer/android/platform/android-sdk
+          key: android-sdk-${{ runner.os }}
+
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer/android/platform/android-ndk-r25b
+          key: android-ndk-${{ runner.os }}
+
+      - name: Cache Buildozer
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
+      - name: Cache python-for-android
+        uses: actions/cache@v4
+        with:
+          path: .buildozer/android/platform/python-for-android
+          key: p4a-${{ runner.os }}
+
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -34,49 +69,34 @@ jobs:
 
       - name: Check required files
         run: |
-          echo "=== Checking image files ==="
-          if [ -f splash.png ]; then
-            echo "✅ splash.png found (size: $(stat -c%s splash.png) bytes)"
-          else
+          if [ ! -f splash.png ]; then
             echo "❌ ERROR: splash.png not found!"
             exit 1
           fi
-          
-          if [ -f presplash.png ]; then
-            echo "✅ presplash.png found (size: $(stat -c%s presplash.png) bytes)"
-          else
-            echo "❌ ERROR: presplash.png not found!"
-            exit 1
+          if [ ! -f presplash.png ]; then
+            echo "⚠️ presplash.png not found"
           fi
-          
-          if [ -f icon.png ]; then
-            echo "✅ icon.png found"
-          else
-            echo "⚠️ icon.png not found, creating placeholder"
+          if [ ! -f icon.png ]; then
             echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icon.png
-          fi
-          
-          if [ -d fonts ]; then
-            echo "✅ fonts directory found"
-          else
-            echo "⚠️ fonts directory not found, creating"
-            mkdir -p fonts
           fi
 
       - name: Clean builds
         run: |
-          rm -rf ~/.buildozer .buildozer
           buildozer -v android clean || true
 
       - name: Build APK with pip fix
         run: |
-          # Клонируем p4a вручную и патчим до запуска buildozer
+          # Клонируем p4a вручную и патчим
           mkdir -p .buildozer/android/platform
           cd .buildozer/android/platform
-          git clone -b develop --single-branch https://github.com/kivy/python-for-android.git
+          if [ ! -d python-for-android ]; then
+            git clone -b develop --single-branch --depth 1 https://github.com/kivy/python-for-android.git
+          else
+            cd python-for-android && git pull && cd ..
+          fi
           cd python-for-android
           
-          # Сильный патч
+          # Патч
           sed -i "s|pip install -U pip|pip install pip==24.3.1 --no-deps --force-reinstall|g" pythonforandroid/build.py
           sed -i "s|'pip install -U pip'|'pip install pip==24.3.1 --no-deps --force-reinstall'|g" pythonforandroid/build.py
           

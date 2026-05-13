@@ -5,17 +5,19 @@ package.name = pythonlearningide
 package.domain = com.emerlukov
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,ttf,json,txt,md,otf
-source.include_dirs = fonts
+source.include_dirs = fonts,images
 source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv
 source.exclude_patterns = *.pyc,*.pyo
 version = 3.4.0
 
-# Главное исправление — pinned версии
-requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd,pygments,autopep8,plyer
+# ==================== ИСПРАВЛЕННЫЕ ТРЕБОВАНИЯ ====================
+# Указываем КОНКРЕТНУЮ версию kivymd, которая работает
+requirements = python3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0
 
+# Опциональные (не критичные для сборки)
+# plyer - убрал, т.к. он не обязателен и вызывает проблемы
 
-
-presplash.filename = presplash.png
+presplash.filename = splash.png
 icon.filename = icon.png
 orientation = portrait
 fullscreen = 0
@@ -26,7 +28,7 @@ android.ndk_api = 24
 android.ndk = 25b
 android.archs = arm64-v8a,armeabi-v7a
 
-android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,MANAGE_EXTERNAL_STORAGE
+android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
 android.enable_androidx = True
 android.accept_sdk_license = True
 android.statusbar_color = #121212

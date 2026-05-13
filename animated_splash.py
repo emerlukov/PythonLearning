@@ -1,6 +1,6 @@
 """
 Animated splash screen - Custom colors
-Keyboard completely disabled
+Keyboard COMPLETELY DISABLED
 """
 import os
 from kivy.uix.screenmanager import Screen, SlideTransition
@@ -19,13 +19,12 @@ import time
 
 # Полное отключение клавиатуры
 Config.set('kivy', 'keyboard_mode', 'systemandmulti')
-Config.set('kivy', 'keyboard_layout', 'qwerty')
 
 # ========== ЦВЕТА ==========
 BG_COLOR = (0.188, 0.204, 0.251, 1)  # Тёмно-синий фон
 TEXT_COLOR = (0.596, 0.486, 1.0, 1)   # Фиолетовый текст
-SUB_COLOR = (0.7, 0.65, 0.9, 0.9)     # Светло-фиолетовый для подзаголовка
-PROGRESS_BG = (0.25, 0.27, 0.32, 1)   # Тёмный фон для прогресс-бара
+SUB_COLOR = (0.7, 0.65, 0.9, 0.9)     # Светло-фиолетовый
+PROGRESS_BG = (0.25, 0.27, 0.32, 1)   # Тёмный фон прогресс-бара
 PROGRESS_FILL = (0.596, 0.486, 1.0, 1) # Фиолетовая заливка
 STATUS_COLOR = (0.65, 0.6, 0.85, 0.8) # Статус текст
 
@@ -165,67 +164,31 @@ class AnimatedSplashScreen(Screen):
         
         self.add_widget(layout)
         
-        # Жёсткая блокировка клавиатуры
-        self._block_keyboard_forever()
+        # НЕМЕДЛЕННО отключаем клавиатуру
+        self._disable_keyboard()
         
         # Запуск
-        Clock.schedule_once(self._start, 0.05)
+        Clock.schedule_once(self._start, 0.1)
     
-    def _block_keyboard_forever(self):
-        """Полная и необратимая блокировка клавиатуры"""
+    def _disable_keyboard(self):
+        """Отключаем клавиатуру навсегда"""
         try:
-            # Отключаем мягкий ввод
-            Window.softinput_mode = 'pan'
-            
-            # Убираем фокус со всего
+            # Блокируем фокус
             if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
                 self.main_app.code_input.focus = False
-                self.main_app.code_input.focus_mode = 'none'
                 self.main_app.code_input.disabled = True
             
-            if hasattr(self.main_app, 'action_bar'):
-                if hasattr(self.main_app.action_bar, 'text_input'):
-                    if self.main_app.action_bar.text_input:
-                        self.main_app.action_bar.text_input.focus = False
-            
-            # Запрещаем любые текстовые поля получать фокус
-            Window.focus = False
-            
-            # Через Android API
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                activity = PythonActivity.mActivity
-                InputMethodManager = autoclass('android.view.inputmethod.InputMethodManager')
-                imm = activity.getSystemService('input_method')
-                current_focus = activity.getCurrentFocus()
-                if current_focus:
-                    imm.hideSoftInputFromWindow(current_focus.getWindowToken(), 0)
-                # Убираем возможность показывать клавиатуру
-                activity.getWindow().setSoftInputMode(2)  # SOFT_INPUT_STATE_ALWAYS_HIDDEN
-            except:
-                pass
-        except Exception as e:
-            print(f"Keyboard block error: {e}")
+            # Отключаем мягкий ввод
+            Window.softinput_mode = 'pan'
+        except:
+            pass
     
     def on_pre_enter(self):
-        """До входа на экран - блокируем клавиатуру"""
-        self._block_keyboard_forever()
-    
-    def on_enter(self):
-        """При входе - ещё раз блокируем"""
-        self._block_keyboard_forever()
+        """До входа - блокируем"""
+        self._disable_keyboard()
     
     def on_touch_down(self, touch):
-        """Перехватываем все касания"""
-        return True
-    
-    def on_touch_move(self, touch):
-        """Перехватываем движения"""
-        return True
-    
-    def on_touch_up(self, touch):
-        """Перехватываем отпускания"""
+        """Игнорируем все касания"""
         return True
     
     def _update_bg(self, instance, value):
@@ -290,12 +253,11 @@ class AnimatedSplashScreen(Screen):
             Clock.schedule_once(self._go_to_main, 0.5)
     
     def _go_to_main(self, dt):
-        # Восстанавливаем клавиатуру
+        # Восстанавливаем клавиатуру для основного приложения
         try:
-            Window.softinput_mode = ''
             if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
                 self.main_app.code_input.disabled = False
-                self.main_app.code_input.focus_mode = 'focus'
+            Window.softinput_mode = ''
         except:
             pass
         

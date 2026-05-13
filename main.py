@@ -93,7 +93,8 @@ from kivy.lang import Builder
 from kivy.utils import platform
 from kivy.metrics import dp, sp
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
-from animated_splash import AnimatedSplashScreen  # Импорт нашей заставки
+from animated_splash import AnimatedSplashScreen
+from presplash_screen import PresplashScreen
 
 # ====================== ГЛОБАЛЬНЫЙ ФЛАГ ОТЛАДКИ ======================
 DEBUG = True
@@ -4384,17 +4385,28 @@ class PythonLearningApp(MDApp):
         # Создаём ScreenManager
         sm = ScreenManager()
         
-        # Добавляем анимированную заставку
+        # ===== ЗАСТАВКА №1 (системная) =====
+        # splash.png - уже настроена в buildozer.spec через presplash.filename
+        # Она показывается ДО загрузки Kivy, её не нужно добавлять в ScreenManager
+        
+        # ===== ЗАСТАВКА №2 (статическая) =====
+        # presplash.png - показываем сразу после загрузки Kivy
+        from presplash_screen import PresplashScreen
+        presplash = PresplashScreen(self, name='presplash')
+        sm.add_widget(presplash)
+        
+        # ===== ЗАСТАВКА №3 (анимированная) =====
+        from animated_splash import AnimatedSplashScreen
         splash = AnimatedSplashScreen(self, name='splash')
         sm.add_widget(splash)
         
-        # Добавляем главный экран
+        # ===== ГЛАВНЫЙ ЭКРАН =====
         main_screen = Screen(name='main')
         main_screen.add_widget(main_widget)
         sm.add_widget(main_screen)
         
-        # Стартуем с заставки
-        sm.current = 'splash'
+        # Стартуем со второй заставки (presplash)
+        sm.current = 'presplash'
         
         return sm
     
@@ -6256,3 +6268,123 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -32,20 +32,35 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install buildozer cython==0.29.36
 
-      - name: Ensure splash.png exists
+      - name: Check required files
         run: |
-          if [ ! -f splash.png ]; then
-            echo "❌ splash.png not found!"
-            exit 1
+          echo "=== Checking image files ==="
+          if [ -f splash.png ]; then
+            echo "✅ splash.png found (size: $(stat -c%s splash.png) bytes)"
           else
-            echo "✅ splash.png found"
-            ls -la splash.png
+            echo "❌ ERROR: splash.png not found!"
+            exit 1
           fi
           
-          if [ ! -f icon.png ]; then
+          if [ -f presplash.png ]; then
+            echo "✅ presplash.png found (size: $(stat -c%s presplash.png) bytes)"
+          else
+            echo "❌ ERROR: presplash.png not found!"
+            exit 1
+          fi
+          
+          if [ -f icon.png ]; then
+            echo "✅ icon.png found"
+          else
             echo "⚠️ icon.png not found, creating placeholder"
-            # Создаём чёрный квадрат как заглушку для иконки
             echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icon.png
+          fi
+          
+          if [ -d fonts ]; then
+            echo "✅ fonts directory found"
+          else
+            echo "⚠️ fonts directory not found, creating"
+            mkdir -p fonts
           fi
 
       - name: Clean builds

@@ -10,17 +10,21 @@ source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv,.github
 source.exclude_patterns = *.pyc,*.pyo
 version = 3.4.0
 
-requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0,plyer
+# ========== ТРЕБОВАНИЯ ==========
+requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,plyer
 
+# ========== ЗАСТАВКИ ==========
 presplash.filename = splash.png
 presplash.color = #000000
-android.presplash_color = #000000
 
+# ========== ИКОНКА ==========
 icon.filename = icon.png
 
+# ========== ОСНОВНЫЕ НАСТРОЙКИ ==========
 orientation = portrait
 fullscreen = 0
 
+# ========== ANDROID НАСТРОЙКИ ==========
 android.api = 33
 android.minapi = 24
 android.ndk_api = 24
@@ -34,14 +38,11 @@ android.statusbar_color = #FFFFFF
 android.navigationbar_color = #FFFFFF
 android.allow_backup = True
 
-# НЕ ИСПОЛЬЗУЕМ КАСТОМНЫЕ ТЕМЫ
-# android.apptheme = @style/AppTheme
-# android.add_src = src
-
 entrypoint = main.py
 source.main = main.py
 android.copy_libs = 1
 
+# ========== НАСТРОЙКИ СТАБИЛЬНОСТИ ==========
 p4a.branch = develop
 p4a.hostpython_version = 3.10.7
 android.private_storage = True

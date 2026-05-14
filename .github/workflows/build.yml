@@ -73,11 +73,26 @@ jobs:
             echo "❌ ERROR: splash.png not found!"
             exit 1
           fi
+          echo "✅ splash.png found"
+          
           if [ ! -f presplash.png ]; then
-            echo "⚠️ presplash.png not found"
+            echo "⚠️ presplash.png not found (optional)"
+          else
+            echo "✅ presplash.png found"
           fi
+          
           if [ ! -f icon.png ]; then
+            echo "⚠️ icon.png not found, creating placeholder"
             echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icon.png
+          else
+            echo "✅ icon.png found"
+          fi
+          
+          if [ -d fonts ]; then
+            echo "✅ fonts directory found"
+          else
+            echo "⚠️ fonts directory not found, creating"
+            mkdir -p fonts
           fi
 
       - name: Clean builds
@@ -96,7 +111,7 @@ jobs:
           fi
           cd python-for-android
           
-          # Патч
+          # Патч для pip
           sed -i "s|pip install -U pip|pip install pip==24.3.1 --no-deps --force-reinstall|g" pythonforandroid/build.py
           sed -i "s|'pip install -U pip'|'pip install pip==24.3.1 --no-deps --force-reinstall'|g" pythonforandroid/build.py
           

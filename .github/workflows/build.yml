@@ -36,7 +36,8 @@ jobs:
         run: |
           pip install autopep8 pycodestyle requests
           python -c "
-import autopep8, pycodestyle
+import autopep8
+import pycodestyle
 print('✅ autopep8 version:', autopep8.__version__)
 print('✅ pycodestyle version:', pycodestyle.__version__)
 print('All dependencies installed successfully')
@@ -44,11 +45,12 @@ print('All dependencies installed successfully')
 
       - name: Check required files
         run: |
-          ls -la splash.png icon.png || echo "Warning: some assets missing"
           if [ ! -f splash.png ]; then
-            echo "❌ splash.png not found!"
+            echo "❌ ERROR: splash.png not found!"
             exit 1
           fi
+          echo "✅ splash.png found"
+          ls -la icon.png || echo "⚠️ icon.png not found (will create placeholder)"
 
       - name: Clean previous build
         run: |

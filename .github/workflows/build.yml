@@ -67,6 +67,14 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install buildozer cython==0.29.36
 
+      - name: Install autopep8 for testing
+        run: |
+          pip install autopep8==1.7.0 pycodestyle==2.10.0
+
+      - name: Test autopep8 installation
+        run: |
+          python -c "import autopep8; print(f'autopep8 version: {autopep8.__version__}')"
+
       - name: Check required files
         run: |
           if [ ! -f splash.png ]; then
@@ -94,10 +102,6 @@ jobs:
             echo "⚠️ fonts directory not found, creating"
             mkdir -p fonts
           fi
-
-      - name: Test autopep8 installation locally
-        run: |
-          python -c "import autopep8; print(f'autopep8 version: {autopep8.__version__}')"
 
       - name: Clean builds
         run: |

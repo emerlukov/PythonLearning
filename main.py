@@ -6022,10 +6022,21 @@ def пауза():
         tr = self.tr
         self._examples_cache = None
         if hasattr(self, 'tab_manager'):
+            # Переименовываем вкладки при смене языка
             for tab in self.tab_manager.tabs:
-                if tab['title'] in ['Untitled', 'New', 'New']:
-                    tab['title'] = tr.get('untitled_tab', 'New')
+                current_title = tab['title']
+                # Убираем звёздочку, если есть (несохранённые изменения)
+                has_asterisk = current_title.startswith('*')
+                clean_title = current_title.lstrip('*')
+                
+                # Список названий для переименования на разных языках
+                if clean_title in ['Untitled', 'New', 'Новый']:
+                    new_title = tr.get('untitled_tab', 'New')
+                    if has_asterisk:
+                        new_title = '*' + new_title
+                    tab['title'] = new_title
             self.tab_manager._update_tab_bar()
+        
         if hasattr(self, 'spinner'):
             try:
                 self.spinner.values = self._get_example_titles()

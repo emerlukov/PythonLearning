@@ -10,12 +10,13 @@ source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv,.github
 source.exclude_patterns = *.pyc,*.pyo
 version = 3.4.0
 
-# ========== ТРЕБОВАНИЯ С autopep8 ==========
-requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0,pycodestyle==2.10.0,plyer
+# ========== ТРЕБОВАНИЯ ==========
+requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8,pycodestyle,plyer,requests
 
 # ========== ЗАСТАВКИ ==========
 presplash.filename = splash.png
 presplash.color = #000000
+android.presplash_color = #000000
 
 # ========== ИКОНКА ==========
 icon.filename = icon.png

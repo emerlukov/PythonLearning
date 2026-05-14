@@ -23,25 +23,18 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip openjdk-17-jdk \
-            autoconf libtool pkg-config zlib1g-dev libncurses-dev libtinfo6 \
-            cmake libffi-dev libssl-dev automake autopoint gettext libltdl-dev
+          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config \
+            zlib1g-dev libncurses-dev libtinfo6 cmake libffi-dev libssl-dev automake \
+            autopoint gettext libltdl-dev
 
-      - name: Install Buildozer
+      - name: Install Buildozer and dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          pip install buildozer cython==0.29.36
+          pip install buildozer cython==0.29.36 autopep8 pycodestyle requests
 
-      - name: Install dependencies (including autopep8)
+      - name: Test autopep8 installation
         run: |
-          pip install autopep8 pycodestyle requests
-          python -c "
-import autopep8
-import pycodestyle
-print('✅ autopep8 version:', autopep8.__version__)
-print('✅ pycodestyle version:', pycodestyle.__version__)
-print('All dependencies installed successfully')
-          "
+          python -c "import autopep8, pycodestyle; print('✅ autopep8 version:', autopep8.__version__); print('✅ pycodestyle version:', pycodestyle.__version__)"
 
       - name: Check required files
         run: |
@@ -50,7 +43,6 @@ print('All dependencies installed successfully')
             exit 1
           fi
           echo "✅ splash.png found"
-          ls -la icon.png || echo "⚠️ icon.png not found (will create placeholder)"
 
       - name: Clean previous build
         run: |

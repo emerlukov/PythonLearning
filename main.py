@@ -681,6 +681,40 @@ LIGHT_THEME = {
 #  ThemeSelectMenu, EditorSettingsMenu, FontSelectMenu, SyntaxStyleManager,
 #  SyntaxHighlightMenu, SettingsMenu, ThemeManager]
 
+import requests
+import re
+import threading
+
+# ====================== GROK AI CODE ASSISTANT ======================
+class GrokCodeAssistant:
+    def __init__(self):
+        self.api_key = None
+        self.endpoint = "https://api.x.ai/v1/chat/completions"
+        self.model = "grok-beta"
+    
+    def set_api_key(self, key):
+        self.api_key = key.strip() if key else None
+
+    def send_request(self, code: str, mode: str = "analyze"):
+        if not self.api_key:
+            return "❌ Grok API ключ не установлен.\nЗайдите в Настройки → Grok AI"
+
+        mode_prompts = {
+            "analyze": "Проанализируй код, найди проблемы, баги, плохой стиль и предложи улучшения.",
+            "improve": "Предложи улучшенную версию кода с объяснениями изменений.",
+            "fix": "Найди и исправь ошибки в коде.",
+            "refactor": "Сделай качественный рефакторинг: чище, современнее, эффективнее.",
+            "explain": "Подробно объясни, как работает этот код."
+        }
+
+        system_prompt = "Ты — опытный Python-разработчик и учитель. Отвечай честно, по делу, с примерами кода на русском языке."
+
+        user_prompt = f"""Вот текущий код:
+
+```python
+{code}
+
+
 class ThemedPopup(Popup):
     """Кастомный Popup с поддержкой тем"""
     def __init__(self, **kwargs):
@@ -767,6 +801,108 @@ class ThemedPopup(Popup):
         with instance.canvas.before:
             Color(*self._title_bg)
             Rectangle(pos=instance.pos, size=instance.size)
+
+
+class GrokAssistantPopup(BoxLayout):
+    """Красивый popup для Grok AI — Помощник по коду"""
+    def __init__(self, grok_ai, code_input, **kwargs):
+        super().__init__(**kwargs)
+        self.orientation = 'vertical'
+        self.padding = dp(12)
+        self.spacing = dp(12)
+        self.grok_ai = grok_ai
+        self.code_input = code_input
+        self.current_response = ""
+
+        # Заголовок
+        title = Label(
+            text="Grok AI — Помощник по коду", 
+            font_name='SourceBold', 
+            font_size=sp(18), 
+            color=(0.6, 0.8, 1, 1), 
+            size_hint_y=None, 
+            height=dp(45)
+        )
+        self.add_widget(title)
+
+        # Кнопки режимов
+        modes_layout = BoxLayout(size_hint_y=None, height=dp(55), spacing=dp(6))
+        modes = [
+            ("analyze", "Анализировать"),
+            ("improve", "Улучшить"),
+            ("fix", "Исправить"),
+            ("refactor", "Рефакторить")
+        ]
+        for mode, text in modes:
+            btn = Button(
+                text=text, 
+                font_name='SourceBold', 
+                font_size=sp(13)
+            )
+            btn.bind(on_release=lambda x, m=mode: self.ask_grok(m))
+            modes_layout.add_widget(btn)
+        self.add_widget(modes_layout)
+
+        # Результат
+        self.result_label = TextInput(
+            readonly=True,
+            multiline=True,
+            font_name='SourceBold',
+            font_size=sp(13),
+            background_color=(0.12, 0.12, 0.15, 1),
+            foreground_color=(0.95, 0.95, 0.98, 1)
+        )
+        self.add_widget(self.result_label)
+
+        # Кнопка применения изменений
+        apply_btn = Button(
+            text="Применить изменения в редактор",
+            size_hint_y=None,
+            height=dp(50),
+            background_color=(0.2, 0.65, 0.2, 1),
+            font_name='SourceBold',
+            font_size=sp(15)
+        )
+        apply_btn.bind(on_release=self.apply_changes)
+        self.add_widget(apply_btn)
+
+    def ask_grok(self, mode):
+        code = self.code_input.text
+        if not code.strip():
+            self.result_label.text = "Напишите или вставьте код!"
+            return
+
+        self.result_label.text = "Grok думает..."
+        threading.Thread(target=self._get_response, args=(code, mode), daemon=True).start()
+
+    def _get_response(self, code, mode):
+        response = self.grok_ai.send_request(code, mode)
+        Clock.schedule_once(lambda dt: self._show_response(response))
+
+    def _show_response(self, response):
+        self.current_response = response
+        self.result_label.text = response
+
+    def apply_changes(self, instance):
+        if not self.current_response:
+            return
+
+        # Исправленное регулярное выражение
+        match = re.search(r'```python\s*(.*?)\s*```', self.current_response, re.DOTALL | re.IGNORECASE)
+        
+        if match:
+            new_code = match.group(1).strip()
+            self.code_input.text = new_code
+            self.result_label.text += "\n\n✅ Код успешно заменён в редакторе!"
+        else:
+            # Альтернативный поиск (если код без ```python)
+            match2 = re.search(r'```(.*?)```', self.current_response, re.DOTALL | re.IGNORECASE)
+            if match2:
+                new_code = match2.group(1).strip()
+                self.code_input.text = new_code
+                self.result_label.text += "\n\n✅ Код успешно заменён!"
+            else:
+                self.result_label.text += "\n\n⚠️ Не удалось автоматически применить изменения.\nСкопируйте код вручную."
 
 
 class ThemedSpinner(Spinner):
@@ -929,6 +1065,18 @@ class SettingsManager:
     def save_font(cls, font_key):
         settings = cls.load()
         settings['editor_font'] = font_key
+        return cls.save(settings)
+
+    @classmethod
+    def get_grok_key(cls):
+        """Получить API ключ Grok"""
+        return cls.load().get('grok_api_key', '')
+
+    @classmethod
+    def save_grok_key(cls, api_key):
+        """Сохранить API ключ Grok"""
+        settings = cls.load()
+        settings['grok_api_key'] = api_key
         return cls.save(settings)
 
 
@@ -4333,6 +4481,7 @@ class PythonLearningApp(MDApp):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.grok_ai = GrokCodeAssistant()
         self.current_language = self._load_language()
         self.tr = TRANSLATIONS[self.current_language]
         self.history = []
@@ -4601,6 +4750,22 @@ class PythonLearningApp(MDApp):
         if self._restore_on_start:
             Clock.schedule_once(self._restore_autosaved_code, 0.3)
         Clock.schedule_once(lambda dt: self._preload_examples(), 0.5)
+
+    def show_grok_assistant(self, instance=None):
+        """Открыть Grok AI Code Assistant"""
+        if not hasattr(self, 'grok_ai'):
+            self.grok_ai = GrokCodeAssistant()
+        
+        self.grok_ai.set_api_key(SettingsManager.get_grok_key())
+        
+        content = GrokAssistantPopup(self.grok_ai, self.code_input)
+        popup = Popup(
+            title="Grok AI — Помощник по коду",
+            content=content,
+            size_hint=(0.96, 0.92),
+            auto_dismiss=True
+        )
+        popup.open()
 
     def _fix_layout_on_start(self, dt):
         try:
@@ -4928,7 +5093,7 @@ class PythonLearningApp(MDApp):
                 Color(*theme.get('action_bar_bg', theme['widget_bg']))
                 Rectangle(pos=container.pos, size=container.size)
             container.bind(pos=lambda inst, val: self._update_menu_container_bg(inst, theme), size=lambda inst, val: self._update_menu_container_bg(inst, theme))
-        menu_items = [('file-plus', tr['new'], self.new_file), ('folder-open', tr['load'], self.show_load_dialog), ('content-save', tr['save'], self.show_save_dialog), ('magnify', tr['find'], self.show_search_only_dialog), ('find-replace', tr['find_replace'], self.show_search_replace_dialog), ('history', tr['history'], self.show_history), ('code-tags', tr['format'], self.format_code), ('robot', tr['ai_assistant'], self.show_ai_assistant), ('cog', tr['settings'], self._open_settings_menu)]
+        menu_items = [('file-plus', tr['new'], self.new_file), ('folder-open', tr['load'], self.show_load_dialog), ('content-save', tr['save'], self.show_save_dialog), ('magnify', tr['find'], self.show_search_only_dialog), ('find-replace', tr['find_replace'], self.show_search_replace_dialog), ('history', tr['history'], self.show_history), ('code-tags', tr['format'], self.format_code), ('robot', 'Grok AI', self.show_grok_assistant), ('robot', tr['ai_assistant'], self.show_ai_assistant), ('cog', tr['settings'], self._open_settings_menu)]
         from kivymd.uix.label import MDIcon
         from kivy.uix.behaviors import ButtonBehavior
         btn_bg = theme.get('action_bar_bg', theme['widget_bg'])

@@ -5935,7 +5935,7 @@ def пауза():
         def do_format():
             try:
                 if HAS_AUTOPEP8 and autopep8 is not None:
-                    print("[INFO] Используем autopep8")
+                    print("[INFO] Форматирование через autopep8")
                     formatted = autopep8.fix_code(
                         code,
                         options={
@@ -5951,22 +5951,24 @@ def пауза():
 
                 Clock.schedule_once(lambda dt: self._apply_formatting(formatted))
             except Exception as e:
-                Clock.schedule_once(lambda dt: self._formatting_error(str(e)))
+                error_msg = f"Ошибка форматирования: {str(e)}"
+                Clock.schedule_once(lambda dt: self._formatting_error(error_msg))
 
         threading.Thread(target=do_format, daemon=True).start()
-    
+
+
     def _basic_format(self, code: str) -> str:
-        """Простое форматирование отступов, если autopep8 не работает"""
+        """Простое форматирование отступов (fallback)"""
         lines = code.split('\n')
         formatted = []
         indent_level = 0
 
         for raw_line in lines:
-            line = raw_line.rstrip()  # убираем пробелы в конце
-            stripped = line.strip()
+            stripped = raw_line.strip()
+            original_end = raw_line[len(raw_line.rstrip()):]  # сохраняем пробелы в конце
 
             if not stripped:
-                formatted.append(raw_line)  # сохраняем оригинальную пустую строку
+                formatted.append(raw_line)
                 continue
 
             # Уменьшаем отступ
@@ -5974,7 +5976,7 @@ def пауза():
                 indent_level = max(0, indent_level - 1)
 
             indent = '    ' * indent_level
-            formatted.append(indent + stripped)
+            formatted.append(indent + stripped + original_end)
 
             # Увеличиваем отступ
             if (stripped.endswith(':') and not stripped.startswith(('import', 'from', 'elif', 'else', 'except', 'finally'))) or \
@@ -5985,6 +5987,7 @@ def пауза():
 
 
     def _apply_formatting(self, formatted):
+        """Применение отформатированного кода"""
         self.run_btn.text = self.tr.get('run', '▶')
         self.run_btn.disabled = False
 
@@ -6014,6 +6017,7 @@ def пауза():
 
 
     def _formatting_error(self, error_msg):
+        """Обработка ошибки форматирования"""
         self.run_btn.text = self.tr.get('run', '▶')
         self.run_btn.disabled = False
         self.show_result_popup(f"{self.tr.get('error', 'Error')}:\n{str(error_msg)[:250]}")

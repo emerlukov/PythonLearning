@@ -10,8 +10,8 @@ source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv,.github
 source.exclude_patterns = *.pyc,*.pyo
 version = 3.4.0
 
-# ========== ТРЕБОВАНИЯ (БЕЗ autopep8) ==========
-requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,plyer
+# ========== ТРЕБОВАНИЯ С autopep8 ==========
+requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,autopep8==1.7.0,pycodestyle==2.10.0,plyer
 
 # ========== ЗАСТАВКИ ==========
 presplash.filename = splash.png

@@ -39,12 +39,7 @@ import builtins
 from datetime import datetime
 
 # ====================== ИМПОРТ СТОРОННИХ БИБЛИОТЕК ======================
-try:
-    import autopep8
-    HAS_AUTOPEP8 = True
-except ImportError:
-    autopep8 = None
-    HAS_AUTOPEP8 = False
+HAS_AUTOPEP8 = False
 
 # ====================== ИМПОРТ БИБЛИОТЕК ANVPY (ANDROID) ======================
 try:
@@ -5919,44 +5914,98 @@ def пауза():
         self.show_result_popup("\n".join(lines))
 
     def format_code(self, instance):
-        if not HAS_AUTOPEP8:
-            self.show_result_popup("! autopep8 not installed")
-            return
+        """Форматирование кода - встроенное, без autopep8"""
         code = self.code_input.text
         if not code.strip():
+            self.show_result_popup("Нет кода для форматирования")
             return
+        
+        # Отключаем кнопку
         self.run_btn.text = "..."
         self.run_btn.disabled = True
+        
         def do_format():
             try:
-                formatted = autopep8.fix_code(code, options={'aggressive': 1, 'indent_size': 4})
-                Clock.schedule_once(lambda dt: self._format_done(formatted))
+                lines = code.split('\n')
+                formatted_lines = []
+                indent_level = 0
+                inside_triple_quotes = False
+                
+                for line in lines:
+                    stripped = line.strip()
+                    
+                    # Проверка на тройные кавычки (не меняем отступ внутри)
+                    if '"""' in stripped or "'''" in stripped:
+                        inside_triple_quotes = not inside_triple_quotes
+                    
+                    if not inside_triple_quotes:
+                        # Уменьшаем отступ для закрывающих конструкций
+                        if stripped.startswith(('}', '])', ')', 'elif ', 'else:', 'except ', 'finally:')):
+                            indent_level = max(0, indent_level - 1)
+                        
+                        # Уменьшаем отступ для строк с elif/else после блока
+                        if stripped.startswith(('elif ', 'else:')):
+                            indent_level = max(0, indent_level - 1)
+                    
+                    # Добавляем отступ
+                    indent = '    ' * indent_level
+                    formatted_lines.append(indent + stripped if stripped else '')
+                    
+                    if not inside_triple_quotes:
+                        # Увеличиваем отступ для открывающих конструкций
+                        if stripped.endswith(('{', '[', '(')):
+                            indent_level += 1
+                        elif stripped.endswith(':') and not stripped.startswith(('import', 'from')):
+                            if not stripped.startswith(('elif', 'else', 'except', 'finally')):
+                                indent_level += 1
+                        elif stripped.startswith(('def ', 'class ', 'if ', 'for ', 'while ', 'with ', 'try:')):
+                            indent_level += 1
+                
+                formatted = '\n'.join(formatted_lines)
+                Clock.schedule_once(lambda dt: self._apply_formatting(formatted))
             except Exception as e:
-                Clock.schedule_once(lambda dt: self._format_error(str(e)))
+                error_msg = str(e)
+                Clock.schedule_once(lambda dt: self._formatting_error(error_msg))
+        
         threading.Thread(target=do_format, daemon=True).start()
-
-    def _format_done(self, formatted):
+    
+    def _apply_formatting(self, formatted):
+        """Применяет отформатированный код"""
         self.run_btn.text = self.tr.get('run', '▶')
         self.run_btn.disabled = False
-        if formatted:
-            cursor_pos = self.code_input.cursor_index()
+        
+        if formatted and formatted != self.code_input.text:
+            # Сохраняем позицию курсора
+            try:
+                cursor_pos = self.code_input.cursor_index()
+            except:
+                cursor_pos = 0
+            
+            # Применяем форматирование
             self.code_input.text = formatted
+            
+            # Обновляем редактор
             if hasattr(self, 'editor') and self.editor:
                 self.editor.original_lines = formatted.split('\n')
                 self.editor._update_line_panel()
+                Clock.schedule_once(self.editor._update_text_width, 0.1)
+            
+            # Восстанавливаем курсор
             try:
                 if cursor_pos <= len(formatted):
                     self.code_input.cursor = self.code_input.get_cursor_from_index(cursor_pos)
             except:
                 pass
-            self.show_result_popup(self.tr.get('formatted_ok', '! Code formatted'))
+            
+            self.show_result_popup("✓ Код отформатирован")
         else:
-            self.show_result_popup(self.tr.get('formatted_fail', '! Format failed'))
-
-    def _format_error(self, error_msg):
+            self.show_result_popup("! Код уже отформатирован")
+    
+    def _formatting_error(self, error_msg):
+        """Обработка ошибки форматирования"""
         self.run_btn.text = self.tr.get('run', '▶')
         self.run_btn.disabled = False
-        self.show_result_popup(f"{self.tr.get('error', 'Error')}:\n{error_msg}")
+        self.show_result_popup(f"! Ошибка форматирования:\n{error_msg[:100]}")
 
     def show_api_key_settings(self, instance=None):
         tr = self.tr
@@ -6271,6 +6320,71 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

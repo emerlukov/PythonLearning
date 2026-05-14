@@ -20,41 +20,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      # ========== КЭШИРОВАНИЕ ==========
-      - name: Cache Android SDK
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer/android/platform/android-sdk
-          key: android-sdk-${{ runner.os }}
-
-      - name: Cache Android NDK
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer/android/platform/android-ndk-r25b
-          key: android-ndk-${{ runner.os }}
-
-      - name: Cache Buildozer
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-${{ runner.os }}-
-
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
-
-      - name: Cache python-for-android
-        uses: actions/cache@v4
-        with:
-          path: .buildozer/android/platform/python-for-android
-          key: p4a-${{ runner.os }}
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -67,65 +32,45 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install buildozer cython==0.29.36
 
-      - name: Install autopep8 for testing
+      - name: Install dependencies (including autopep8)
         run: |
-          pip install autopep8==1.7.0 pycodestyle==2.10.0
-
-      - name: Test autopep8 installation
-        run: |
-          python -c "import autopep8; print(f'autopep8 version: {autopep8.__version__}')"
+          pip install autopep8 pycodestyle requests
+          python -c "
+import autopep8, pycodestyle
+print('✅ autopep8 version:', autopep8.__version__)
+print('✅ pycodestyle version:', pycodestyle.__version__)
+print('All dependencies installed successfully')
+          "
 
       - name: Check required files
         run: |
+          ls -la splash.png icon.png || echo "Warning: some assets missing"
           if [ ! -f splash.png ]; then
-            echo "❌ ERROR: splash.png not found!"
+            echo "❌ splash.png not found!"
             exit 1
           fi
-          echo "✅ splash.png found"
-          
-          if [ ! -f presplash.png ]; then
-            echo "⚠️ presplash.png not found (optional)"
-          else
-            echo "✅ presplash.png found"
-          fi
-          
-          if [ ! -f icon.png ]; then
-            echo "⚠️ icon.png not found, creating placeholder"
-            echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" | base64 -d > icon.png
-          else
-            echo "✅ icon.png found"
-          fi
-          
-          if [ -d fonts ]; then
-            echo "✅ fonts directory found"
-          else
-            echo "⚠️ fonts directory not found, creating"
-            mkdir -p fonts
-          fi
 
-      - name: Clean builds
+      - name: Clean previous build
         run: |
           buildozer -v android clean || true
 
-      - name: Build APK with pip fix
+      - name: Build APK
         run: |
-          # Клонируем p4a вручную и патчим
           mkdir -p .buildozer/android/platform
           cd .buildozer/android/platform
+          
           if [ ! -d python-for-android ]; then
             git clone -b develop --single-branch --depth 1 https://github.com/kivy/python-for-android.git
           else
             cd python-for-android && git pull && cd ..
           fi
-          cd python-for-android
           
-          # Патч для pip
+          cd python-for-android
           sed -i "s|pip install -U pip|pip install pip==24.3.1 --no-deps --force-reinstall|g" pythonforandroid/build.py
           sed -i "s|'pip install -U pip'|'pip install pip==24.3.1 --no-deps --force-reinstall'|g" pythonforandroid/build.py
           
-          echo "✅ p4a patched successfully"
           cd ../../../..
-
+          
           buildozer -v android debug
 
       - name: Upload APK

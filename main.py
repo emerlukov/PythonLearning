@@ -39,7 +39,14 @@ import builtins
 from datetime import datetime
 
 # ====================== ИМПОРТ СТОРОННИХ БИБЛИОТЕК ======================
-HAS_AUTOPEP8 = False
+try:
+    import autopep8
+    HAS_AUTOPEP8 = True
+    print("[INFO] autopep8 успешно загружен")
+except ImportError:
+    autopep8 = None
+    HAS_AUTOPEP8 = False
+    print("[WARNING] autopep8 не найден — будет использоваться базовое форматирование")
 
 # ====================== ИМПОРТ БИБЛИОТЕК ANVPY (ANDROID) ======================
 try:
@@ -5916,61 +5923,100 @@ def пауза():
         self.show_result_popup("\n".join(lines))
 
     def format_code(self, instance):
-        """Форматирование кода через autopep8"""
+        """Форматирование кода через autopep8 с fallback"""
         code = self.code_input.text
         if not code.strip():
             self.show_result_popup(self.tr.get('no_code', 'No code to format'))
             return
-        
+
         self.run_btn.text = "..."
         self.run_btn.disabled = True
-        
+
         def do_format():
             try:
-                import autopep8
-                # Форматируем код
-                formatted = autopep8.fix_code(
-                    code,
-                    options={
-                        'aggressive': 1,
-                        'indent_size': 4,
-                        'max_line_length': 88
-                    }
-                )
+                if HAS_AUTOPEP8 and autopep8 is not None:
+                    print("[INFO] Используем autopep8")
+                    formatted = autopep8.fix_code(
+                        code,
+                        options={
+                            'aggressive': 1,
+                            'indent_size': 4,
+                            'max_line_length': 88,
+                            'experimental': True
+                        }
+                    )
+                else:
+                    print("[INFO] autopep8 недоступен → используем базовое форматирование")
+                    formatted = self._basic_format(code)
+
                 Clock.schedule_once(lambda dt: self._apply_formatting(formatted))
-            except ImportError as e:
-                error_msg = "autopep8 not installed. Please reinstall the app."
-                Clock.schedule_once(lambda dt: self._formatting_error(error_msg))
             except Exception as e:
-                error_msg = str(e)
-                Clock.schedule_once(lambda dt: self._formatting_error(error_msg))
-        
+                Clock.schedule_once(lambda dt: self._formatting_error(str(e)))
+
         threading.Thread(target=do_format, daemon=True).start()
     
+    def _basic_format(self, code: str) -> str:
+        """Простое форматирование отступов, если autopep8 не работает"""
+        lines = code.split('\n')
+        formatted = []
+        indent_level = 0
+
+        for raw_line in lines:
+            line = raw_line.rstrip()  # убираем пробелы в конце
+            stripped = line.strip()
+
+            if not stripped:
+                formatted.append(raw_line)  # сохраняем оригинальную пустую строку
+                continue
+
+            # Уменьшаем отступ
+            if stripped.startswith(('else:', 'elif ', 'except ', 'finally:', '}', '])', ')')):
+                indent_level = max(0, indent_level - 1)
+
+            indent = '    ' * indent_level
+            formatted.append(indent + stripped)
+
+            # Увеличиваем отступ
+            if (stripped.endswith(':') and not stripped.startswith(('import', 'from', 'elif', 'else', 'except', 'finally'))) or \
+               stripped.startswith(('def ', 'class ', 'if ', 'for ', 'while ', 'with ', 'try:')):
+                indent_level += 1
+
+        return '\n'.join(formatted)
+
+
     def _apply_formatting(self, formatted):
         self.run_btn.text = self.tr.get('run', '▶')
         self.run_btn.disabled = False
-        
-        if formatted and formatted != self.code_input.text:
-            cursor_pos = self.code_input.cursor_index() if hasattr(self.code_input, 'cursor_index') else 0
-            self.code_input.text = formatted
-            if hasattr(self, 'editor') and self.editor:
-                self.editor.original_lines = formatted.split('\n')
-                self.editor._update_line_panel()
-                Clock.schedule_once(self.editor._update_text_width, 0.1)
-            try:
-                if cursor_pos <= len(formatted):
-                    self.code_input.cursor = self.code_input.get_cursor_from_index(cursor_pos)
-            except:
-                pass
-            self.show_result_popup(self.tr.get('formatted_ok', '✓ Code formatted successfully'))
-        else:
+
+        if formatted.strip() == self.code_input.text.strip():
             self.show_result_popup(self.tr.get('formatted_fail', '! No changes needed'))
-    
+            return
+
+        try:
+            cursor_pos = self.code_input.cursor_index()
+        except:
+            cursor_pos = 0
+
+        self.code_input.text = formatted
+
+        if hasattr(self, 'editor') and self.editor:
+            self.editor.original_lines = formatted.split('\n')
+            self.editor._update_line_panel()
+            Clock.schedule_once(self.editor._update_text_width, 0.1)
+
+        try:
+            if cursor_pos <= len(formatted):
+                self.code_input.cursor = self.code_input.get_cursor_from_index(cursor_pos)
+        except:
+            pass
+
+        self.show_result_popup(self.tr.get('formatted_ok', '✓ Code formatted'))
+
+
     def _formatting_error(self, error_msg):
         self.run_btn.text = self.tr.get('run', '▶')
         self.run_btn.disabled = False
-        self.show_result_popup(f"{self.tr.get('error', 'Error')}:\n{error_msg[:200]}")
+        self.show_result_popup(f"{self.tr.get('error', 'Error')}:\n{str(error_msg)[:250]}")
 
     def show_api_key_settings(self, instance=None):
         tr = self.tr

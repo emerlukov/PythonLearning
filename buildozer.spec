@@ -10,7 +10,7 @@ source.exclude_dirs = .git,__pycache__,bin,.buildozer,venv,.github
 source.exclude_patterns = *.pyc,*.pyo
 version = 3.4.0
 
-# ========== ТРЕБОВАНИЯ ==========
+# ========== ТРЕБОВАНИЯ (БЕЗ autopep8) ==========
 requirements = python3==3.10.7,hostpython3==3.10.7,kivy==2.3.0,kivymd==1.1.1,pygments,plyer
 
 # ========== ЗАСТАВКИ ==========

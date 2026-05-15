@@ -33,12 +33,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 fonts_dir = os.path.join(current_dir, 'fonts')
 
 bold_font_path = os.path.join(fonts_dir, 'SourceSansPro-Bold.ttf')
-if os.path.exists(bold_font_path):
-    LabelBase.register(name='SplashTitle', fn_regular=bold_font_path)
-
 regular_font_path = os.path.join(fonts_dir, 'NotoSans-Regular.ttf')
-if os.path.exists(regular_font_path):
-    LabelBase.register(name='SplashRegular', fn_regular=regular_font_path)
 
 
 class CustomProgressBar(Widget):
@@ -77,39 +72,37 @@ class CustomProgressBar(Widget):
 
 class AnimatedSplashScreen(Screen):
     """Анимированная заставка - исправлено дёрганье клавиатуры"""
-    
+
     def __init__(self, main_app, **kwargs):
         super().__init__(**kwargs)
         self.main_app = main_app
         self.name = 'splash'
         self.loading_complete = False
-        
-        # Защита от дёрганья клавиатуры (блокируем ресайз окна)
+
+        # Защита от дёрганья клавиатуры
         Window.bind(on_resize=self._on_window_resize)
-        
+
         # Фон
         with self.canvas.before:
             Color(*BG_COLOR)
             self.bg_rect = Rectangle(pos=self.pos, size=self.size)
-        
+
         self.bind(pos=self._update_bg, size=self._update_bg)
-        
+
         # Main layout
         layout = BoxLayout(
             orientation='vertical',
             padding=[dp(30), dp(60), dp(30), dp(60)],
             spacing=dp(25)
         )
-        
+
         layout.add_widget(Widget(size_hint_y=0.2))
-        
-        # TITLE
-        title_font = 'SplashTitle' if os.path.exists(bold_font_path) else 'Roboto'
-        
+
+        # TITLE - используем стандартный шрифт
         self.title_label = Label(
             text='[b]Python[/b]\nLearning IDE',
             markup=True,
-            font_name=title_font,
+            font_name='Roboto',  # ← изменено
             font_size=sp(34),
             color=TEXT_COLOR,
             halign='center',
@@ -120,13 +113,11 @@ class AnimatedSplashScreen(Screen):
             width=lambda inst, val: setattr(inst, 'text_size', (val, None))
         )
         layout.add_widget(self.title_label)
-        
+
         # SUBTITLE
-        subtitle_font = 'SplashRegular' if os.path.exists(regular_font_path) else 'Roboto'
-        
         self.subtitle_label = Label(
             text='Learn Python on Android',
-            font_name=subtitle_font,
+            font_name='Roboto',  # ← изменено
             font_size=sp(14),
             color=SUB_COLOR,
             halign='center',
@@ -202,13 +193,13 @@ class AnimatedSplashScreen(Screen):
     
     def _start(self, dt):
         """Запуск анимаций и загрузки"""
-        Clock.schedule_once(self._start_animations, 0.25)
+        Clock.schedule_once(self._start_animations, 0.05)
         threading.Thread(target=self._load_resources, daemon=True).start()
     
     def _start_animations(self, dt=None):
         """Анимации заголовка и подзаголовка"""
         # Появление заголовка
-        anim = Animation(opacity=1, duration=0.6)
+        anim = Animation(opacity=1, duration=0.2)
         self.title_label.opacity = 0
         anim.start(self.title_label)
         
@@ -241,7 +232,7 @@ class AnimatedSplashScreen(Screen):
                 current += 1
                 if current <= 100:
                     Clock.schedule_once(lambda dt, v=current: self._set_progress(v), 0)
-                    time.sleep(0.02)
+                    time.sleep(0.005)
         
         Clock.schedule_once(lambda dt: self._set_progress(100), 0)
         Clock.schedule_once(self._finish, 0.5)
@@ -256,9 +247,9 @@ class AnimatedSplashScreen(Screen):
         if not self.loading_complete:
             self.loading_complete = True
             self.status_label.text = "Ready!"
-            fade = Animation(opacity=0, duration=0.4)
+            fade = Animation(opacity=0, duration=0.1)
             fade.start(self)
-            Clock.schedule_once(self._go_to_main, 0.5)
+            Clock.schedule_once(self._go_to_main, 0.15)
     
     def _go_to_main(self, dt):
         """Переход на главный экран"""
@@ -269,7 +260,7 @@ class AnimatedSplashScreen(Screen):
         except:
             pass
         
-        self.manager.transition = SlideTransition(direction='left', duration=0.35)
+        self.manager.transition = SlideTransition(direction='left', duration=0.15)
         self.manager.current = 'main'
         
         if hasattr(self.main_app, 'on_splash_finished'):

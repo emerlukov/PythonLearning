@@ -2940,6 +2940,294 @@ class LineNumberTextInput(BoxLayout):
         Window.unbind(on_key_down=self._on_window_key_down)
 
 
+# ====================== ANDROID FILE PICKER (SAF) ======================
+class AndroidFilePicker:
+    """
+    Выбор файлов через Storage Access Framework на Android
+    Это правильный способ для Android 5.0+
+    """
+
+    _callback = None
+    _save_callback = None
+    _multiple_callback = None
+
+    @staticmethod
+    def pick_file(callback):
+        """
+        Открывает системный диалог выбора ОДНОГО файла
+
+        Args:
+            callback: функция, которая получит содержимое файла (str или None)
+        """
+        try:
+            from jnius import autoclass, cast
+            from android import activity
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Intent = autoclass('android.content.Intent')
+
+            intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.setType("*/*")
+
+            # Разрешаем выбор только текстовых файлов
+            intent.putExtra(Intent.EXTRA_MIME_TYPES, [
+                "text/plain",
+                "text/x-python",
+                "text/x-python3",
+                "application/x-python-code",
+                "text/markdown",
+                "text/html",
+                "text/css",
+                "text/javascript",
+                "application/json",
+                "application/xml",
+                "text/xml",
+                "text/x-c",
+                "text/x-cpp",
+                "text/x-java",
+                "text/x-sh",
+                "text/x-script.python"
+            ])
+
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+            current_activity.startActivityForResult(intent, 1001)
+
+            AndroidFilePicker._callback = callback
+
+        except Exception as e:
+            log_error(f"File picker error: {e}")
+            if callback:
+                callback(None)
+
+    @staticmethod
+    def pick_multiple_files(callback):
+        """
+        Открывает диалог выбора НЕСКОЛЬКИХ файлов
+        """
+        try:
+            from jnius import autoclass, cast
+            from android import activity
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Intent = autoclass('android.content.Intent')
+
+            intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.setType("*/*")
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, True)
+
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+            current_activity.startActivityForResult(intent, 1003)
+
+            AndroidFilePicker._multiple_callback = callback
+
+        except Exception as e:
+            log_error(f"Multiple file picker error: {e}")
+            if callback:
+                callback([])
+
+    @staticmethod
+    def save_file(callback, suggested_name="script.py"):
+        """
+        Открывает диалог сохранения файла
+
+        Args:
+            callback: функция, которая получит URI для сохранения
+            suggested_name: предлагаемое имя файла
+        """
+        try:
+            from jnius import autoclass, cast
+            from android import activity
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Intent = autoclass('android.content.Intent')
+
+            intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.setType("text/plain")
+            intent.putExtra(Intent.EXTRA_TITLE, suggested_name)
+
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+            current_activity.startActivityForResult(intent, 1002)
+
+            AndroidFilePicker._save_callback = callback
+
+        except Exception as e:
+            log_error(f"Save picker error: {e}")
+            if callback:
+                callback(None)
+
+    @staticmethod
+    def open_directory(callback):
+        """
+        Открывает диалог выбора папки
+        """
+        try:
+            from jnius import autoclass, cast
+            from android import activity
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Intent = autoclass('android.content.Intent')
+
+            intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE)
+
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+            current_activity.startActivityForResult(intent, 1004)
+
+            AndroidFilePicker._callback = callback
+
+        except Exception as e:
+            log_error(f"Directory picker error: {e}")
+            if callback:
+                callback(None)
+
+
+# ====================== ФУНКЦИИ ДЛЯ РАБОТЫ С URI ======================
+def read_file_from_uri(uri):
+    """
+    Читает содержимое файла из URI
+
+    Args:
+        uri: Android URI объекта
+
+    Returns:
+        str: содержимое файла или None при ошибке
+    """
+    try:
+        from jnius import autoclass
+
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        activity = PythonActivity.mActivity
+        content_resolver = activity.getContentResolver()
+
+        # Открываем InputStream
+        input_stream = content_resolver.openInputStream(uri)
+
+        # Читаем байты
+        all_bytes = bytearray()
+        chunk = input_stream.read(4096)
+        while chunk != -1:
+            if isinstance(chunk, bytes):
+                all_bytes.extend(chunk)
+            else:
+                all_bytes.append(chunk)
+            chunk = input_stream.read(4096)
+
+        input_stream.close()
+
+        # Пробуем декодировать в разных кодировках
+        for encoding in ['utf-8', 'utf-8-sig', 'cp1251', 'latin-1', 'koi8-r']:
+            try:
+                return all_bytes.decode(encoding)
+            except:
+                continue
+
+        # Если ничего не подошло, используем utf-8 с заменой ошибок
+        return all_bytes.decode('utf-8', errors='replace')
+
+    except Exception as e:
+        log_error(f"Read URI error: {e}")
+        return None
+
+
+def save_file_to_uri(uri, content):
+    """
+    Сохраняет содержимое в файл через URI
+
+    Args:
+        uri: Android URI объекта
+        content: текст для сохранения
+
+    Returns:
+        bool: True при успехе, False при ошибке
+    """
+    try:
+        from jnius import autoclass
+
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        activity = PythonActivity.mActivity
+        content_resolver = activity.getContentResolver()
+
+        output_stream = content_resolver.openOutputStream(uri)
+        output_stream.write(content.encode('utf-8'))
+        output_stream.flush()
+        output_stream.close()
+
+        return True
+
+    except Exception as e:
+        log_error(f"Save URI error: {e}")
+        return False
+
+
+def get_file_name_from_uri(uri):
+    """
+    Получает имя файла из URI
+
+    Args:
+        uri: Android URI объекта
+
+    Returns:
+        str: имя файла или None
+    """
+    try:
+        from jnius import autoclass
+
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        activity = PythonActivity.mActivity
+        content_resolver = activity.getContentResolver()
+
+        # Пробуем получить имя через Cursor
+        cursor = content_resolver.query(uri, None, None, None, None)
+        if cursor and cursor.moveToFirst():
+            name_index = cursor.getColumnIndex(
+                autoclass('android.provider.OpenableColumns').DISPLAY_NAME
+            )
+            if name_index >= 0:
+                name = cursor.getString(name_index)
+                cursor.close()
+                return name
+
+        if cursor:
+            cursor.close()
+
+        # Fallback: берём последнюю часть URI
+        uri_string = str(uri)
+        if '/' in uri_string:
+            return uri_string.split('/')[-1]
+
+        return "unknown_file"
+
+    except Exception as e:
+        log_error(f"Get filename error: {e}")
+        return None
+
+
+def take_persistent_uri_permission(uri):
+    """
+    Запрашивает постоянное разрешение на доступ к URI
+    Это нужно, чтобы приложение могло открывать файл без повторного выбора
+    """
+    try:
+        from jnius import autoclass, cast
+
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        activity = PythonActivity.mActivity
+        content_resolver = activity.getContentResolver()
+
+        # Берем постоянное разрешение
+        content_resolver.takePersistableUriPermission(
+            uri,
+            autoclass('android.content.Intent').FLAG_GRANT_READ_URI_PERMISSION |
+            autoclass('android.content.Intent').FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        return True
+    except Exception as e:
+        log_error(f"Take permission error: {e}")
+        return False
+
+
 class FileDialog(BoxLayout):
     """Диалог для открытия и сохранения файлов"""
 
@@ -4852,6 +5140,7 @@ class PythonLearningApp(MDApp):
         ThemeManager.register(self)
         self._load_api_key_async()
         self.splash_finished = False
+        self._saved_uris = {}
 
     def _load_language(self):
         try:
@@ -4892,6 +5181,72 @@ class PythonLearningApp(MDApp):
         sm.current = 'splash'
 
         return sm
+
+    def on_activity_result(self, request_code, result_code, intent):
+        """
+        Обработчик результата выбора файла из системного диалога
+        Этот метод автоматически вызывается при возврате из Intent
+        """
+        from jnius import autoclass
+
+        RESULT_OK = -1  # Activity.RESULT_OK
+
+        if request_code == 1001 and result_code == RESULT_OK:  # Выбор одного файла
+            if intent:
+                uri = intent.getData()
+                if uri:
+                    # Запрашиваем постоянное разрешение
+                    take_persistent_uri_permission(uri)
+
+                    # Читаем файл
+                    content = read_file_from_uri(uri)
+                    file_name = get_file_name_from_uri(uri)
+
+                    if AndroidFilePicker._callback:
+                        AndroidFilePicker._callback(content, file_name, uri)
+                    elif hasattr(self, '_on_file_selected'):
+                        self._on_file_selected(content, file_name, uri)
+
+        elif request_code == 1002 and result_code == RESULT_OK:  # Сохранение файла
+            if intent:
+                uri = intent.getData()
+                if uri:
+                    take_persistent_uri_permission(uri)
+
+                    if AndroidFilePicker._save_callback:
+                        AndroidFilePicker._save_callback(uri)
+                    elif hasattr(self, '_on_save_uri'):
+                        self._on_save_uri(uri)
+
+        elif request_code == 1003 and result_code == RESULT_OK:  # Выбор нескольких файлов
+            if intent:
+                uris = []
+                clip_data = intent.getClipData()
+
+                if clip_data:
+                    # Несколько файлов
+                    for i in range(clip_data.getItemCount()):
+                        uri = clip_data.getItemAt(i).getUri()
+                        if uri:
+                            take_persistent_uri_permission(uri)
+                            uris.append(uri)
+                else:
+                    # Один файл
+                    uri = intent.getData()
+                    if uri:
+                        take_persistent_uri_permission(uri)
+                        uris.append(uri)
+
+                if AndroidFilePicker._multiple_callback:
+                    AndroidFilePicker._multiple_callback(uris)
+
+        elif request_code == 1004 and result_code == RESULT_OK:  # Выбор папки
+            if intent:
+                uri = intent.getData()
+                if uri:
+                    take_persistent_uri_permission(uri)
+                    if AndroidFilePicker._callback:
+                        AndroidFilePicker._callback(uri)
 
     def _create_main_widget(self):
         """Переносим сюда ВЕСЬ код из старого метода build()"""
@@ -5078,7 +5433,8 @@ class PythonLearningApp(MDApp):
             from android.permissions import request_permissions, Permission
             request_permissions([
                 Permission.READ_EXTERNAL_STORAGE,
-                Permission.WRITE_EXTERNAL_STORAGE
+                Permission.WRITE_EXTERNAL_STORAGE,
+                Permission.MANAGE_EXTERNAL_STORAGE
             ])
         except:
             pass
@@ -5586,14 +5942,84 @@ class PythonLearningApp(MDApp):
         self.show_result_popup(self.tr.get('new_file_created', '✓ New file created'))
 
     def show_save_dialog(self, instance=None):
+        """Открывает диалог сохранения файла"""
+        if platform == 'android':
+            # Если есть URI последнего сохранения, используем его
+            if hasattr(self, '_saved_uris') and 'current' in self._saved_uris:
+                # Пересохраняем в тот же файл
+                uri = self._saved_uris['current']
+                if save_file_to_uri(uri, self.code_input.text):
+                    self.show_result_popup("✓ Файл сохранён")
+                    self._has_unsaved_changes = False
+                    self._update_title_saved()
+                    return
+
+            # Иначе предлагаем выбрать место
+            suggested_name = "script.py"
+            if self._current_file and not self._current_file.startswith('/'):
+                suggested_name = self._current_file
+
+            AndroidFilePicker.save_file(self._on_save_uri, suggested_name)
+        else:
+            # На других платформах используем старый диалог
+            self._show_legacy_file_dialog(is_save=True)
+
+    def _on_save_uri(self, uri):
+        """Обработчик URI для сохранения"""
+        if uri is None:
+            self.show_result_popup("❌ Сохранение отменено")
+            return
+
+        success = save_file_to_uri(uri, self.code_input.text)
+
+        if success:
+            # Сохраняем URI для будущих сохранений
+            self._saved_uris['current'] = uri
+
+            # Получаем имя файла
+            file_name = get_file_name_from_uri(uri)
+            self._current_file = file_name if file_name else "Сохранённый файл"
+
+            # Обновляем вкладку
+            if hasattr(self, 'tab_manager'):
+                self.tab_manager.set_active_title(file_name if file_name else "Сохранённый")
+
+            self._has_unsaved_changes = False
+            self._update_title_saved()
+            self.show_result_popup(f"✓ Файл сохранён: {file_name}")
+        else:
+            self.show_result_popup("❌ Ошибка при сохранении")
+
+    def _show_legacy_file_dialog(self, is_save=False):
+        """Старый диалог для десктопа"""
         theme = ThemeManager.get_theme()
-        popup = Popup(title=self.tr.get('save', 'Save'), title_color=theme['popup_title'], background='',
-                      background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), size_hint=(0.92, 0.85),
-                      auto_dismiss=False)
-        content = FileDialog(callback=self.save_file, cancel=self.dismiss_popup, is_save=True, popup=popup)
+        popup = Popup(
+            title=self.tr.get('save' if is_save else 'open', 'Save' if is_save else 'Open'),
+            title_color=theme['popup_title'],
+            background='',
+            background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)),
+            size_hint=(0.92, 0.85),
+            auto_dismiss=False
+        )
+
+        if is_save:
+            content = FileDialog(
+                callback=self.save_file,
+                cancel=self.dismiss_popup,
+                is_save=True,
+                popup=popup
+            )
+        else:
+            content = FileDialog(
+                callback=self.load_file,
+                cancel=self.dismiss_popup,
+                is_save=False,
+                popup=popup
+            )
+
         popup.content = content
         self._popup = popup
-        self._current_popup_type = 'save'
+        self._current_popup_type = 'save' if is_save else 'load'
         popup.open()
 
     def save_file(self, path, filename):
@@ -5632,15 +6058,45 @@ class PythonLearningApp(MDApp):
             self.show_result_popup(f"X {self.tr.get('error_save', 'Error')}:\n{e}")
 
     def show_load_dialog(self, instance=None):
-        theme = ThemeManager.get_theme()
-        popup = Popup(title=self.tr.get('open', 'Open'), title_color=theme['popup_title'], background='',
-                      background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), size_hint=(0.92, 0.85),
-                      auto_dismiss=False)
-        content = FileDialog(callback=self.load_file, cancel=self.dismiss_popup, is_save=False, popup=popup)
-        popup.content = content
-        self._popup = popup
-        self._current_popup_type = 'load'
-        popup.open()
+        """Открывает диалог выбора файла"""
+        if platform == 'android':
+            # На Android используем системный диалог
+            AndroidFilePicker.pick_file(self._on_file_selected)
+        else:
+            # На других платформах используем старый диалог
+            self._show_legacy_file_dialog(is_save=False)
+
+    def _on_file_selected(self, content, file_name=None, uri=None):
+        """Обработчик выбранного файла"""
+        if content is None:
+            self.show_result_popup("❌ Ошибка при чтении файла")
+            return
+
+        # Сохраняем URI для возможности пересохранения
+        if uri:
+            self._saved_uris['current'] = uri
+            if hasattr(self, 'tab_manager'):
+                self.tab_manager.set_active_file(uri)
+
+        # Устанавливаем содержимое в редактор
+        self.code_input.text = content
+
+        if hasattr(self, 'editor') and self.editor:
+            self.editor.original_lines = content.split('\n')
+            self.editor._update_line_panel()
+            Clock.schedule_once(self.editor._update_text_width, 0.1)
+
+        # Обновляем заголовок
+        display_name = file_name if file_name else "Загруженный файл"
+        self._current_file = display_name
+        self._has_unsaved_changes = False
+        self._update_title_saved()
+
+        # Обновляем заголовок вкладки
+        if hasattr(self, 'tab_manager'):
+            self.tab_manager.set_active_title(display_name)
+
+        self.show_result_popup(f"✓ Загружен: {display_name}")
 
     def load_file(self, selection):
         tr = self.tr
@@ -6908,3 +7364,9 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+
+
+
+
+

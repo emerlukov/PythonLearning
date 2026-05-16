@@ -411,6 +411,16 @@ TRANSLATIONS = {
         'restart_btn': 'Перезапустить',
         'later_btn': 'Позже',
         'editor_font': 'Шрифт',
+'select_folder': 'Выбрать папку',
+        'folder_selected': '✓ Папка выбрана',
+        'folder_select_error': ' Ошибка выбора папки',
+        'select_method': 'Выберите способ',
+        'system_dialog': ' Системный диалог (рекомендуется)',
+        'classic_file_manager': ' Классический файловый менеджер',
+        'working_folder': 'Рабочая папка',
+        'working_folder_selected': '✓ Рабочая папка выбрана',
+        'working_folder_saved': '✓ Рабочая папка сохранена',
+        'no_working_folder': ' Рабочая папка не выбрана',
     },
     'en': {
         'no_code': 'No code to format',
@@ -562,6 +572,16 @@ TRANSLATIONS = {
         'restart_btn': 'Restart',
         'later_btn': 'Later',
         'editor_font': 'Font',
+'select_folder': 'Select Folder',
+        'folder_selected': '✓ Folder selected',
+        'folder_select_error': ' Folder selection error',
+        'select_method': 'Select method',
+        'system_dialog': ' System dialog (recommended)',
+        'classic_file_manager': ' Classic file manager',
+        'working_folder': 'Working folder',
+        'working_folder_selected': '✓ Working folder selected',
+        'working_folder_saved': '✓ Working folder saved',
+        'no_working_folder': ' No working folder selected',
     },
 }
 
@@ -5445,6 +5465,8 @@ class PythonLearningApp(MDApp):
             Clock.schedule_once(lambda dt: self.on_start(), 0.5)
             return
 
+        self._load_saved_folder()
+
         Window.clearcolor = ThemeManager.get_theme()['window_bg']
         self._update_ui_language()
         if self._restore_on_start:
@@ -5758,7 +5780,7 @@ class PythonLearningApp(MDApp):
                 Rectangle(pos=container.pos, size=container.size)
             container.bind(pos=lambda inst, val: self._update_menu_container_bg(inst, theme),
                            size=lambda inst, val: self._update_menu_container_bg(inst, theme))
-        menu_items = [('file-plus', tr['new'], self.new_file), ('folder-open', tr['load'], self.show_load_dialog),
+        menu_items = [('file-plus', tr['new'], self.new_file), ('folder-open', tr['load'], self.show_load_dialog),('folder', tr.get('select_folder', 'Select Folder'), self._select_working_folder),
                       ('content-save', tr['save'], self.show_save_dialog),
                       ('magnify', tr['find'], self.show_search_only_dialog),
                       ('find-replace', tr['find_replace'], self.show_search_replace_dialog),
@@ -5790,6 +5812,114 @@ class PythonLearningApp(MDApp):
             box.bind(on_release=lambda bt, f=func: self.menu_action(bt, f))
             self._menu_dropdown.add_widget(box)
         self._menu_dropdown.width = dp(167)
+
+    def _load_saved_folder(self):
+        """Загружает сохранённую рабочую папку при старте"""
+        try:
+            settings = SettingsManager.load()
+            folder_uri = settings.get('working_folder_uri')
+            if folder_uri and not hasattr(self, '_saved_uris'):
+                self._saved_uris = {}
+            if folder_uri:
+                from jnius import autoclass
+                Uri = autoclass('android.net.Uri')
+                self._saved_uris['folder'] = Uri.parse(folder_uri)
+                print(f"[INFO] Loaded saved folder: {folder_uri}")
+        except Exception as e:
+            log_error(f"Load saved folder error: {e}")
+
+    def _select_working_folder(self, instance=None):
+        """Выбор рабочей папки для приложения"""
+        tr = self.tr
+
+        if platform == 'android':
+            # Показываем информационный диалог перед выбором
+            theme = ThemeManager.get_theme()
+            content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(8))
+
+            info_label = Label(
+                text=tr.get('working_folder', 'Working folder') + '\n\n' +
+                     "Android will ask you to select a folder.\n" +
+                     "The app will remember this folder.",
+                color=theme['text_color'],
+                font_size=dp(12),
+                font_name='SourceBold',
+                halign='center',
+                valign='middle',
+                size_hint_y=None,
+                height=dp(60)
+            )
+            info_label.bind(width=lambda inst, val: setattr(inst, 'text_size', (val, None)))
+            content.add_widget(info_label)
+
+            btn_layout = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(10))
+
+            btn_ok = Button(
+                text=tr.get('ok', 'OK'),
+                font_name='SourceBold',
+                background_color=theme.get('btn_success_bg', (0.2, 0.5, 0.2, 1)),
+                background_normal='', background_down='',
+                color=(1, 1, 1, 1),
+                font_size=dp(14)
+            )
+
+            btn_cancel = Button(
+                text=tr.get('cancel', 'Cancel'),
+                font_name='SourceBold',
+                background_color=theme['widget_bg'],
+                background_normal='', background_down='',
+                color=theme['text_color'],
+                font_size=dp(14)
+            )
+
+            btn_layout.add_widget(btn_ok)
+            btn_layout.add_widget(btn_cancel)
+            content.add_widget(btn_layout)
+
+            popup = Popup(
+                title=tr.get('select_folder', 'Select Folder'),
+                title_color=theme['popup_title'],
+                background='',
+                background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)),
+                content=content,
+                size_hint=(0.85, 0.35),
+                auto_dismiss=False
+            )
+
+            btn_ok.bind(on_release=lambda x: self._start_folder_picker(popup))
+            btn_cancel.bind(on_release=popup.dismiss)
+
+            popup.open()
+
+        else:
+            self.show_result_popup(tr.get('folder_select_error', 'Folder selection is only available on Android'))
+
+    def _start_folder_picker(self, info_popup):
+        """Запускает выбор папки после закрытия информационного диалога"""
+        info_popup.dismiss()
+        AndroidFilePicker.open_directory(self._on_folder_selected)
+
+    def _on_folder_selected(self, uri):
+        """Обработчик выбранной папки"""
+        tr = self.tr
+
+        if uri:
+            self._saved_uris['folder'] = uri
+
+            # Сохраняем URI в настройки
+            try:
+                settings = SettingsManager.load()
+                settings['working_folder_uri'] = str(uri)
+                SettingsManager.save(settings)
+            except:
+                pass
+
+            # Получаем имя папки для отображения
+            folder_name = get_file_name_from_uri(uri) if uri else "Unknown"
+
+            self.show_result_popup(f"{tr.get('working_folder_selected', '✓ Working folder selected')}: {folder_name}")
+        else:
+            self.show_result_popup(tr.get('folder_select_error', ' Folder selection error'))
 
     def _update_menu_container_bg(self, instance, theme):
         if not hasattr(instance, 'canvas'):
@@ -6058,13 +6188,61 @@ class PythonLearningApp(MDApp):
             self.show_result_popup(f"X {self.tr.get('error_save', 'Error')}:\n{e}")
 
     def show_load_dialog(self, instance=None):
-        """Открывает диалог выбора файла"""
+        """Открывает диалог выбора файла с возможностью выбора метода"""
         if platform == 'android':
-            # На Android используем системный диалог
-            AndroidFilePicker.pick_file(self._on_file_selected)
+            # На Android показываем выбор
+            theme = ThemeManager.get_theme()
+            content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(5))
+
+            btn_saf = Button(
+                text="📱 Системный диалог (рекомендуется)",
+                font_name='SourceBold',
+                size_hint_y=None,
+                height=dp(40),
+                background_color=theme.get('btn_success_bg', (0.2, 0.5, 0.2, 1))
+            )
+            btn_saf.bind(on_release=lambda x: self._use_saf_picker())
+
+            btn_classic = Button(
+                text="📁 Классический файловый менеджер",
+                font_name='SourceBold',
+                size_hint_y=None,
+                height=dp(40),
+                background_color=theme['widget_bg']
+            )
+            btn_classic.bind(on_release=lambda x: self._show_legacy_file_dialog(False))
+
+            btn_cancel = Button(
+                text=self.tr.get('cancel', 'Отмена'),
+                font_name='SourceBold',
+                size_hint_y=None,
+                height=dp(35),
+                background_color=theme.get('btn_danger_bg', (0.5, 0.2, 0.2, 1))
+            )
+
+            content.add_widget(btn_saf)
+            content.add_widget(btn_classic)
+            content.add_widget(btn_cancel)
+
+            popup = Popup(
+                title="Выберите способ",
+                title_color=theme['popup_title'],
+                background='',
+                background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)),
+                content=content,
+                size_hint=(0.85, 0.4),
+                auto_dismiss=True
+            )
+
+            btn_cancel.bind(on_release=popup.dismiss)
+            popup.open()
+
         else:
-            # На других платформах используем старый диалог
             self._show_legacy_file_dialog(is_save=False)
+
+    def _use_saf_picker(self):
+        self.dismiss_popup()
+        AndroidFilePicker.pick_file(self._on_file_selected)
 
     def _on_file_selected(self, content, file_name=None, uri=None):
         """Обработчик выбранного файла"""
@@ -7364,6 +7542,44 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -99,6 +99,9 @@ from kivy.utils import platform
 from kivy.metrics import dp, sp
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from animated_splash import AnimatedSplashScreen
+from kivymd.uix.button import MDRectangleFlatButton, MDFlatButton
+from kivymd.uix.textfield import MDTextField
+from kivymd.uix.label import MDIcon
 
 # ====================== ГЛОБАЛЬНЫЙ ФЛАГ ОТЛАДКИ ======================
 DEBUG = True
@@ -113,19 +116,46 @@ except ImportError:
     PythonLexer = None
     HAS_PYGMENTS = False
 
-# Регистрируем шрифт из папки проекта
+# ====================== РЕГИСТРАЦИЯ ШРИФТОВ ТОЛЬКО ИЗ ПАПКИ ======================
 from kivy.core.text import LabelBase
 
-# Путь к папке со шрифтами
 fonts_dir = os.path.join(os.path.dirname(__file__), 'fonts')
 
-# Регистрируем SourceSansPro-Bold.ttf
+# 1. Регистрируем SourceBold (основной шрифт интерфейса)
 source_bold_path = os.path.join(fonts_dir, 'SourceSansPro-Bold.ttf')
 if os.path.exists(source_bold_path):
     LabelBase.register(name='SourceBold', fn_regular=source_bold_path)
 else:
-    # Fallback на системный шрифт
-    LabelBase.register(name='SourceBold', fn_regular='Arial.ttf')
+    # Fallback на другой шрифт из папки
+    fallback_path = os.path.join(fonts_dir, 'NotoSans-Regular.ttf')
+    if os.path.exists(fallback_path):
+        LabelBase.register(name='SourceBold', fn_regular=fallback_path)
+
+# 2. Регистрируем DejaVuSans для спецсимволов
+dejavu_path = os.path.join(fonts_dir, 'DejaVuSans.ttf')
+if os.path.exists(dejavu_path):
+    LabelBase.register(name='DejaVuSans', fn_regular=dejavu_path)
+
+# 3. Регистрируем моноширинные шрифты для редактора
+mono_fonts = {
+    'JetBrainsMono': 'JetBrainsMono.ttf',
+    'FiraCode': 'FiraCode-Regular.ttf',
+    'CascadiaCode': 'CascadiaCode.ttf',
+    'IBMPlexMono': 'IBMPlexMono-Regular.ttf',
+    'NotoSansMono': 'NotoSansMono.ttf',
+    'SourceCodePro': 'SourceCodePro-Regular.otf',
+    'DroidMono': 'NotoSansMono.ttf',
+}
+
+for font_name, font_file in mono_fonts.items():
+    font_path = os.path.join(fonts_dir, font_file)
+    if os.path.exists(font_path):
+        LabelBase.register(name=font_name, fn_regular=font_path)
+
+# 4. Регистрируем Roboto как основной (если нужен)
+noto_path = os.path.join(fonts_dir, 'NotoSans-Regular.ttf')
+if os.path.exists(noto_path):
+    LabelBase.register(name='Roboto', fn_regular=noto_path)
 
 # ====================== НАСТРОЙКИ KIVY ======================
 Config.set('graphics', 'maxfps', '30')
@@ -1780,7 +1810,7 @@ class SyntaxHighlightMenu:
         apply_text = tr.get('apply', 'Применить')
         cancel_text = tr.get('cancel', 'Отмена')
         back_text = tr.get('back', '← Назад')
-        btn_back = Button(text=back_text, background_color=theme.get('widget_bg', (0.14, 0.14, 0.15, 1)),
+        btn_back = Button(text=back_text,font_name='DejaVuSans', background_color=theme.get('widget_bg', (0.14, 0.14, 0.15, 1)),
                           background_normal='', background_down='', color=theme.get('text_color', (0, 0, 0, 1)),
                           font_size=dp(13), on_release=lambda x: self._back_to_menu())
         btn_cancel = Button(text=cancel_text, background_color=theme.get('widget_bg', (0.14, 0.14, 0.15, 1)),
@@ -2938,28 +2968,59 @@ class FileDialog(BoxLayout):
         self._load_files()
 
     def _create_navigation_bar(self, theme):
+        from kivymd.uix.button import MDRectangleFlatButton
+
         nav_box = BoxLayout(size_hint_y=None, height=dp(30), spacing=dp(3))
-        btn_app = Button(text=self.tr.get('app_folder', '[App]'), font_name='SourceBold', size_hint_x=0.33,
-                         background_color=theme['widget_bg'], background_normal='', background_down='',
-                         color=theme['text_color'], font_size=dp(12))
+
+        btn_app = MDRectangleFlatButton(
+            text=self.tr.get('app_folder', '[App]'),
+            font_size=dp(12),
+            theme_text_color="Custom",
+            text_color=theme['text_color'],
+            line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.5)),
+            size_hint_x=0.33
+        )
         btn_app.bind(on_release=lambda x: self._change_path(os.getcwd()))
         nav_box.add_widget(btn_app)
-        btn_dl = Button(text=self.tr.get('download_folder', '[Download]'), font_name='SourceBold', size_hint_x=0.33,
-                        background_color=theme['widget_bg'], background_normal='', background_down='',
-                        color=theme['text_color'], font_size=dp(12))
+
+        btn_dl = MDRectangleFlatButton(
+            text=self.tr.get('download_folder', '[Download]'),
+            font_size=dp(12),
+            theme_text_color="Custom",
+            text_color=theme['text_color'],
+            line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.5)),
+            size_hint_x=0.33
+        )
         btn_dl.bind(on_release=lambda x: self._change_path('/storage/emulated/0/Download'))
         nav_box.add_widget(btn_dl)
-        btn_root = Button(text=self.tr.get('sdcard_folder', '[/sdcard]'), font_name='SourceBold', size_hint_x=0.34,
-                          background_color=theme['widget_bg'], background_normal='', background_down='',
-                          color=theme['text_color'], font_size=dp(12))
+
+        btn_root = MDRectangleFlatButton(
+            text=self.tr.get('sdcard_folder', '[/sdcard]'),
+            font_size=dp(12),
+            theme_text_color="Custom",
+            text_color=theme['text_color'],
+            line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.5)),
+            size_hint_x=0.34
+        )
         btn_root.bind(on_release=lambda x: self._change_path('/storage/emulated/0'))
         nav_box.add_widget(btn_root)
+
         self.add_widget(nav_box)
 
     def _create_path_label(self, theme, start_path):
-        self.path_label = Label(text=start_path, font_name='SourceBold', color=theme['stats_text'], font_size=dp(11),
-                                size_hint_y=None, height=dp(17), halign='left', valign='middle',
-                                text_size=(None, dp(17)), shorten=True, shorten_from='left')
+        self.path_label = Label(
+            text=start_path,
+            font_name='SourceBold',
+            color=theme['stats_text'],
+            font_size=dp(11),
+            size_hint_y=None,
+            height=dp(17),
+            halign='left',
+            valign='middle',
+            text_size=(None, dp(17)),
+            shorten=True,
+            shorten_from='left'
+        )
         self.add_widget(self.path_label)
 
     def _create_file_list(self, theme):
@@ -2970,36 +3031,64 @@ class FileDialog(BoxLayout):
         self.add_widget(self.file_list_scroll)
 
     def _create_up_button(self, theme):
-        btn_up = Button(text=self.tr.get('up_level', 'A На уровень выше'), font_name='SourceBold', size_hint_y=None,
-                        height=dp(23), background_color=theme['widget_bg'], background_normal='', background_down='',
-                        color=theme['text_color'], font_size=dp(12))
+        from kivymd.uix.button import MDRectangleFlatButton
+
+        btn_up = MDRectangleFlatButton(
+            text=self.tr.get('up_level', '▲ На уровень выше'),
+            font_name='SourceBold',
+            size_hint_y=None,
+            height=dp(23),
+            theme_text_color="Custom",
+            text_color=theme['text_color'],
+            line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.5)),
+            font_size=dp(11)
+        )
         btn_up.bind(on_release=self._go_up)
         self.add_widget(btn_up)
 
     def _create_filename_input(self, theme):
-        self.file_name_input = TextInput(
-            text='script.py', font_name='SourceBold',
-            multiline=False, size_hint_y=None, height=dp(33),
-            font_size=dp(12), background_color=theme['input_bg'],
-            foreground_color=theme['input_text'],
-            cursor_color=theme['input_cursor'],
+        from kivymd.uix.textfield import MDTextField
+
+        self.file_name_input = MDTextField(
+            text='script.py',
+            mode="rectangle",
+            font_size=dp(13),
+            size_hint_y=None,
+            height=dp(45),
             hint_text=self.tr.get('file_name', 'Имя файла...'),
-            hint_text_color=theme['hint_text'], padding=(dp(7), dp(7))
+            line_color_normal=theme.get('separator_color', (0.5, 0.5, 0.5, 0.5)),
+            line_color_focus=theme.get('separator_color', (0.5, 0.5, 0.5, 0.5))
         )
-        # При фокусе — поднимаем окно
-        self.file_name_input.bind(focus=self._on_filename_focus)
+        # Поднимаем окно при фокусе
+        self.file_name_input.bind(on_focus=self._on_filename_focus)
         self.add_widget(self.file_name_input)
 
     def _create_action_buttons(self, theme):
-        btns = BoxLayout(size_hint_y=None, height=dp(33), spacing=dp(5))
-        btn_cancel = Button(text=self.tr.get('cancel', 'Отмена'), font_name='SourceBold',
-                            background_color=theme['widget_bg'], background_normal='', background_down='',
-                            color=theme['text_color'], font_size=dp(12))
+        from kivymd.uix.button import MDRectangleFlatButton
+
+        btns = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(5))
+
+        btn_cancel = MDRectangleFlatButton(
+            text=self.tr.get('cancel', 'Отмена'),
+            font_name='SourceBold',
+            theme_text_color="Custom",
+            text_color=theme['text_color'],
+            line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.5)),
+            font_size=dp(12)
+        )
         btn_cancel.bind(on_release=self._on_cancel)
+
         action_text = self.tr.get('save_file') if self.is_save else self.tr.get('open', 'Открыть')
-        btn_action = Button(text=action_text, font_name='SourceBold', background_color=theme['widget_bg'],
-                            background_normal='', background_down='', color=theme['text_color'], font_size=dp(12))
+        btn_action = MDRectangleFlatButton(
+            text=action_text,
+            font_name='SourceBold',
+            theme_text_color="Custom",
+            text_color=theme['text_color'],
+            line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.5)),
+            font_size=dp(12)
+        )
         btn_action.bind(on_release=self._on_action)
+
         btns.add_widget(btn_cancel)
         btns.add_widget(btn_action)
         self.add_widget(btns)
@@ -3042,72 +3131,199 @@ class FileDialog(BoxLayout):
             self._load_files()
 
     def _load_files(self):
+        """Загружает список файлов и папок, показывая все текстовые файлы"""
+        from kivymd.uix.button import MDRectangleFlatButton
+        from kivymd.uix.label import MDIcon
+
         self.file_list.clear_widgets()
         self.path_label.text = self.current_path
         theme = ThemeManager.get_theme()
+
+        # Расширения текстовых файлов, которые нужно показывать
+        text_extensions = {
+            '.py', '.txt', '.md', '.json', '.xml', '.html', '.htm', '.css',
+            '.js', '.csv', '.log', '.ini', '.cfg', '.conf', '.yaml', '.yml',
+            '.toml', '.rst', '.tex', '.sgml', '.sgm', '.xhtml', '.php', '.rb',
+            '.pl', '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat', '.cmd',
+            '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs', '.swift',
+            '.kt', '.kts', '.scala', '.groovy', '.lua', '.r', '.jl', '.m', '.mm',
+            '.sql', '.vue', '.svelte', '.astro', '.gradle', '.properties',
+            '.env', '.gitignore', '.dockerignore', '.dockerfile'
+        }
+
         try:
             items = os.listdir(self.current_path)
-        except:
+        except PermissionError:
             self.file_list.add_widget(
-                Label(text=self.tr.get('no_access', '[Нет доступа к папке]'), font_name='SourceBold',
-                      color=theme['stats_text'], font_size=dp(11), size_hint_y=None, height=dp(20)))
+                Label(text=self.tr.get('no_access', '[Нет доступа к папке]'),
+                      font_name='SourceBold',
+                      color=theme['stats_text'], font_size=dp(11),
+                      size_hint_y=None, height=dp(20)))
             return
+        except Exception as e:
+            self.file_list.add_widget(
+                Label(text=f"{self.tr.get('error', 'Ошибка')}: {str(e)[:50]}",
+                      font_name='SourceBold',
+                      color=theme['stats_text'], font_size=dp(11),
+                      size_hint_y=None, height=dp(20)))
+            return
+
         items.sort(key=str.lower)
         folders = []
         files = []
+
         for item in items:
             full = os.path.join(self.current_path, item)
             try:
                 if os.path.isdir(full):
                     folders.append(item)
                 else:
-                    files.append(item)
-            except:
-                pass
+                    _, ext = os.path.splitext(item)
+                    ext_lower = ext.lower()
+                    # Показываем все текстовые файлы
+                    if ext_lower in text_extensions:
+                        files.append(item)
+            except (PermissionError, OSError):
+                continue
+
+        # Добавляем папки с иконкой MD
         for folder in folders:
             full = os.path.join(self.current_path, folder)
-            btn = Button(text=f'[+] {folder}', font_name='SourceBold', size_hint_y=None, height=dp(23),
-                         background_color=theme['widget_bg'], background_normal='', background_down='',
-                         color=theme['text_color'], font_size=dp(11), halign='left', valign='middle',
-                         padding=(dp(7), 0))
+
+            # Создаём горизонтальный контейнер для иконки и текста
+            item_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(5))
+
+            icon = MDIcon(
+                icon='folder',
+                font_size=f"{dp(14)}sp",
+                theme_text_color="Custom",
+                text_color=theme['text_color'],
+                size_hint_x=None,
+                width=dp(24)
+            )
+            item_box.add_widget(icon)
+
+            btn = MDRectangleFlatButton(
+                text=folder,
+                font_name='SourceBold',
+                theme_text_color="Custom",
+                text_color=theme['text_color'],
+                line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.3)),
+                font_size=dp(12),
+                size_hint_x=1,
+                halign='left'
+            )
             btn.bind(on_release=lambda x, p=full: self._change_path(p))
-            self.file_list.add_widget(btn)
+            item_box.add_widget(btn)
+
+            self.file_list.add_widget(item_box)
+
+        # Добавляем файлы с MD иконками в зависимости от типа
         for file in files:
             full = os.path.join(self.current_path, file)
-            btn = Button(text=f'  {file}', font_name='SourceBold', size_hint_y=None, height=dp(23),
-                         background_color=theme['input_bg'], background_normal='', background_down='',
-                         color=theme['input_text'], font_size=dp(11), halign='left', valign='middle',
-                         padding=(dp(7), 0))
+            _, ext = os.path.splitext(file)
+            ext_lower = ext.lower()
+
+            # Выбираем иконку MD в зависимости от типа файла
+            icon_name = 'file-document'
+            if ext_lower == '.py':
+                icon_name = 'language-python'
+            elif ext_lower == '.txt':
+                icon_name = 'file-document-outline'
+            elif ext_lower == '.md':
+                icon_name = 'markdown'
+            elif ext_lower == '.json':
+                icon_name = 'code-json'
+            elif ext_lower in ('.html', '.htm'):
+                icon_name = 'language-html5'
+            elif ext_lower == '.css':
+                icon_name = 'language-css3'
+            elif ext_lower == '.js':
+                icon_name = 'language-javascript'
+            elif ext_lower == '.xml':
+                icon_name = 'language-xml'
+            elif ext_lower == '.csv':
+                icon_name = 'file-delimited'
+            elif ext_lower == '.log':
+                icon_name = 'file-send'
+            elif ext_lower in ('.yaml', '.yml'):
+                icon_name = 'code-braces'
+            elif ext_lower in ('.sh', '.bash'):
+                icon_name = 'console'
+            elif ext_lower in ('.java', '.c', '.cpp', '.h'):
+                icon_name = 'language-c'
+            elif ext_lower == '.sql':
+                icon_name = 'database'
+            else:
+                icon_name = 'file-document'
+
+            # Создаём контейнер для файла
+            item_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(5))
+
+            icon = MDIcon(
+                icon=icon_name,
+                font_size=f"{dp(14)}sp",
+                theme_text_color="Custom",
+                text_color=theme['text_color'],
+                size_hint_x=None,
+                width=dp(24)
+            )
+            item_box.add_widget(icon)
+
+            btn = MDRectangleFlatButton(
+                text=file,
+                font_name='SourceBold',
+                theme_text_color="Custom",
+                text_color=theme['text_color'],
+                line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.3)),
+                font_size=dp(12),
+                size_hint_x=1,
+                halign='left'
+            )
             btn.bind(on_release=lambda x, p=full: self._select_file(p))
-            self.file_list.add_widget(btn)
+            item_box.add_widget(btn)
+
+            self.file_list.add_widget(item_box)
+
         if not folders and not files:
             self.file_list.add_widget(
-                Label(text=self.tr.get('empty', '[Пусто]'), font_name='SourceBold', color=theme['stats_text'],
+                Label(text=self.tr.get('empty', '[Пусто]'),
+                      font_name='SourceBold',
+                      color=theme['stats_text'],
                       font_size=dp(11), size_hint_y=None, height=dp(20)))
 
     def _select_file(self, path):
+        """Выбирает файл и подсвечивает его"""
+        from kivymd.uix.button import MDRectangleFlatButton
+
         self.selected_file = path
         theme = ThemeManager.get_theme()
         target_name = os.path.basename(path)
-        for child in self.file_list.children:
-            if isinstance(child, Button):
-                if child.text.startswith('  '):
-                    child.background_color = theme['input_bg']
-                elif child.text.startswith('[+]'):
-                    child.background_color = theme['widget_bg']
-        for child in self.file_list.children:
-            if isinstance(child, Button):
-                if child.text == f'  {target_name}':
-                    child.background_color = theme.get('btn_selected_file_bg', (0.3, 0.5, 0.3, 1))
-                    break
 
-    def _on_filename_focus(self, instance, focused):
-        """Поднимает окно при фокусе на поле ввода имени файла."""
+        # Сброс всех кнопок
+        for child in self.file_list.children:
+            if isinstance(child, BoxLayout):
+                for btn in child.children:
+                    if isinstance(btn, MDRectangleFlatButton):
+                        btn.line_color = theme.get('separator_color', (0.5, 0.5, 0.5, 0.3))
+                        btn.line_width = 1
+                    elif hasattr(btn, 'line_color'):
+                        btn.line_color = theme.get('separator_color', (0.5, 0.5, 0.5, 0.3))
+
+        # Подсветка выбранного файла
+        for child in self.file_list.children:
+            if isinstance(child, BoxLayout):
+                for btn in child.children:
+                    if isinstance(btn, MDRectangleFlatButton) and btn.text == target_name:
+                        btn.line_color = theme.get('btn_success_bg', (0.2, 0.5, 0.2, 1))
+                        btn.line_width = 2
+                        break
+
+    def _on_filename_focus(self, instance, focused, *args):
+        """Поднимает окно при фокусе на поле ввода имени файла"""
         if focused and self.popup:
-            # Поднимаем окно выше, когда клавиатура открыта
-            self.popup.pos_hint = {'top': 1.25}  # ← больше число = выше окно
+            self.popup.pos_hint = {'top': 1.2}
         elif not focused and self.popup:
-            # Возвращаем на место, когда клавиатура закрыта
             self.popup.pos_hint = {'top': 0.95}
 
     def _on_cancel(self, instance):
@@ -3121,7 +3337,8 @@ class FileDialog(BoxLayout):
             self.popup.dismiss()
         if self.is_save:
             if self.callback:
-                self.callback(self.current_path, self.file_name_input.text)
+                filename = self.file_name_input.text if hasattr(self, 'file_name_input') else 'script.py'
+                self.callback(self.current_path, filename)
         else:
             if self.selected_file and self.callback:
                 self.callback([self.selected_file])

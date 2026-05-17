@@ -2451,7 +2451,7 @@ class LineNumberTextInput(BoxLayout):
         Clock.schedule_once(self._bind_scroll_sync, 0.1)
 
     def _create_line_panel_scroll(self):
-        self.line_panel = BoxLayout(orientation='vertical', size_hint=(None, None), width=dp(33), spacing=0)
+        self.line_panel = BoxLayout(orientation='vertical', size_hint=(None, None), width=dp(45), spacing=0)
         self.line_panel.bind(minimum_height=self.line_panel.setter('height'))
         theme = ThemeManager.get_theme()
         with self.line_panel.canvas.before:
@@ -2461,7 +2461,7 @@ class LineNumberTextInput(BoxLayout):
         theme = ThemeManager.get_theme()
         scroll_bar_color = theme.get('scroll_bar_color', (0.4, 0.4, 0.4, 0.9))
         scroll_bar_inactive = theme.get('scroll_bar_inactive', (0.25, 0.25, 0.25, 0.6))
-        self.line_panel_scroll = ScrollView(size_hint=(None, 1), width=dp(33), do_scroll_x=False, do_scroll_y=True,
+        self.line_panel_scroll = ScrollView(size_hint=(None, 1), width=dp(45), do_scroll_x=False, do_scroll_y=True,
                                             scroll_type=['bars'], bar_width=0, effect_cls='ScrollEffect',
                                             scroll_distance=dp(17), scroll_timeout=dp(33))
         self.line_panel_scroll.add_widget(self.line_panel)
@@ -5392,7 +5392,7 @@ class PythonLearningApp(MDApp):
     def on_splash_finished(self):
         """Вызывается, когда заставка завершила работу"""
         self.splash_finished = True
-        print("✅ Splash screen finished, app ready")
+        print("✓ Splash screen finished, app ready")
 
     def _request_android_permissions(self):
         try:
@@ -5720,6 +5720,8 @@ class PythonLearningApp(MDApp):
     def _create_menu_items(self, theme):
         self._menu_dropdown.clear_widgets()
         tr = self.tr
+
+        # Стилизация фона выпадающего меню
         if hasattr(self._menu_dropdown, 'container'):
             container = self._menu_dropdown.container
             container.canvas.before.clear()
@@ -5728,37 +5730,54 @@ class PythonLearningApp(MDApp):
                 Rectangle(pos=container.pos, size=container.size)
             container.bind(pos=lambda inst, val: self._update_menu_container_bg(inst, theme),
                            size=lambda inst, val: self._update_menu_container_bg(inst, theme))
-        menu_items = [('file-plus', tr['new'], self.new_file), ('folder-open', tr['load'], self.show_load_dialog),('folder', tr.get('select_folder', 'Select Folder'), self._select_working_folder),
-                      ('content-save', tr['save'], self.show_save_dialog),
-                      ('magnify', tr['find'], self.show_search_only_dialog),
-                      ('find-replace', tr['find_replace'], self.show_search_replace_dialog),
-                      ('history', tr['history'], self.show_history), ('code-tags', tr['format'], self.format_code),
-                      ('robot', tr['ai_assistant'], self.show_ai_assistant),
-                      ('cog', tr['settings'], self._open_settings_menu)]
+
+        # ========== СПИСОК ПУНКТОВ МЕНЮ ==========
+        menu_items = [
+            ('file-plus', tr['new'], self.new_file),
+            ('folder-open', tr['load'], self.show_load_dialog),
+            ('content-save', tr['save'], self.show_save_dialog),
+            ('magnify', tr['find'], self.show_search_only_dialog),
+            ('find-replace', tr['find_replace'], self.show_search_replace_dialog),
+            ('history', tr['history'], self.show_history),
+            ('code-tags', tr['format'], self.format_code),
+            ('robot', tr['ai_assistant'], self.show_ai_assistant),
+            ('cog', tr['settings'], self._open_settings_menu),
+        ]
+
         from kivymd.uix.label import MDIcon
         from kivy.uix.behaviors import ButtonBehavior
         btn_bg = theme.get('action_bar_bg', theme['widget_bg'])
+
         for icon_name, text, func in menu_items:
             class MenuItem(ButtonBehavior, BoxLayout):
                 pass
 
-            box = MenuItem(orientation='horizontal', size_hint_y=None, height=dp(35), padding=(dp(8), 0), spacing=dp(5))
+            box = MenuItem(orientation='horizontal', size_hint_y=None, height=dp(35),
+                           padding=(dp(8), 0), spacing=dp(5))
+
             icon = MDIcon(icon=icon_name, font_size=f"{dp(10)}sp", theme_text_color="Custom",
                           text_color=theme['text_color'], size_hint_x=None, width=dp(17))
+
+            lbl = Label(text=text, color=theme['text_color'], font_size=dp(15),
+                        font_name='SourceBold', halign='left', valign='middle')
+
             box.add_widget(icon)
-            lbl = Label(text=text, color=theme['text_color'], font_size=dp(15), font_name='SourceBold', halign='left',
-                        valign='middle')
             box.add_widget(lbl)
+
+            # Фон и обводка
             box.canvas.before.clear()
             with box.canvas.before:
                 Color(*btn_bg)
                 Rectangle(pos=box.pos, size=box.size)
                 Color(btn_bg[0] + 0.08, btn_bg[1] + 0.08, btn_bg[2] + 0.08, 1)
                 Line(rectangle=(box.pos[0], box.pos[1], box.size[0], box.size[1]), width=dp(0.5))
+
             box.bind(pos=lambda inst, val, bg=btn_bg: self._update_menu_btn_bg(inst, bg),
                      size=lambda inst, val, bg=btn_bg: self._update_menu_btn_bg(inst, bg))
+
             box.bind(on_release=lambda bt, f=func: self.menu_action(bt, f))
             self._menu_dropdown.add_widget(box)
+
         self._menu_dropdown.width = dp(167)
 
     def _load_saved_folder(self):
@@ -6131,7 +6150,7 @@ class PythonLearningApp(MDApp):
 
             except Exception as e:
                 log_error(f"Save dialog error: {e}")
-                self.show_result_popup(f"❌ Ошибка открытия диалога сохранения:\n{str(e)}")
+                self.show_result_popup(f"✕ Ошибка открытия диалога сохранения:\n{str(e)}")
         else:
             self._show_legacy_file_dialog(is_save=True)
 
@@ -6190,7 +6209,7 @@ class PythonLearningApp(MDApp):
 
         except Exception as e:
             log_error(f"_read_file_from_uri error: {e}")
-            self.show_result_popup(f"❌ Не удалось прочитать файл:\n{str(e)[:200]}")
+            self.show_result_popup(f"✕ Не удалось прочитать файл:\n{str(e)[:200]}")
 
     def _load_file_into_editor(self, filename, content):
         """Безопасная загрузка файла в редактор (выполняется в главном потоке)"""
@@ -6234,7 +6253,7 @@ class PythonLearningApp(MDApp):
 
         except Exception as e:
             log_error(f"_save_file_to_uri error: {e}")
-            self.show_result_popup(f"❌ Ошибка сохранения:\n{str(e)[:150]}")
+            self.show_result_popup(f"✕ Ошибка сохранения:\n{str(e)[:150]}")
 
     def _create_new_tab(self, filename, content):
         """Создаёт новую вкладку и загружает в неё файл"""
@@ -6288,7 +6307,7 @@ class PythonLearningApp(MDApp):
     def _on_save_uri(self, uri):
         """Обработчик URI для сохранения"""
         if uri is None:
-            self.show_result_popup("❌ Сохранение отменено")
+            self.show_result_popup("✕ Сохранение отменено")
             return
 
         if save_file_to_uri(uri, self.code_input.text):
@@ -6303,7 +6322,7 @@ class PythonLearningApp(MDApp):
             self._update_title_saved()
             self.show_result_popup(f"✓ Сохранён: {file_name}")
         else:
-            self.show_result_popup("❌ Ошибка сохранения")
+            self.show_result_popup("✕ Ошибка сохранения")
 
     def _show_legacy_file_dialog(self, is_save=False):
         """Старый диалог для десктопа"""
@@ -6342,7 +6361,7 @@ class PythonLearningApp(MDApp):
         print(f"[DEBUG] _on_file_selected called: file={file_name}, content_len={len(content) if content else 0}")
 
         if content is None:
-            self.show_result_popup("❌ Ошибка при чтении файла")
+            self.show_result_popup("✕ Ошибка при чтении файла")
             return
 
         # Загружаем файл
@@ -7637,47 +7656,5 @@ if __name__ == '__main__':
         except:
             pass
         raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

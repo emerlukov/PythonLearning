@@ -3494,7 +3494,7 @@ class FileDialog(BoxLayout):
             self._load_files()
 
     def _load_files(self):
-        """Загружает список файлов и папок, показывая все текстовые файлы"""
+        """Загружает список файлов и папок — с улучшенной совместимостью Android"""
         from kivymd.uix.button import MDRectangleFlatButton
         from kivymd.uix.label import MDIcon
 
@@ -3502,33 +3502,22 @@ class FileDialog(BoxLayout):
         self.path_label.text = self.current_path
         theme = ThemeManager.get_theme()
 
-        # Расширения текстовых файлов, которые нужно показывать
-        text_extensions = {
-            '.py', '.txt', '.md', '.json', '.xml', '.html', '.htm', '.css',
-            '.js', '.csv', '.log', '.ini', '.cfg', '.conf', '.yaml', '.yml',
-            '.toml', '.rst', '.tex', '.sgml', '.sgm', '.xhtml', '.php', '.rb',
-            '.pl', '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat', '.cmd',
-            '.java', '.c', '.cpp', '.h', '.hpp', '.cs', '.go', '.rs', '.swift',
-            '.kt', '.kts', '.scala', '.groovy', '.lua', '.r', '.jl', '.m', '.mm',
-            '.sql', '.vue', '.svelte', '.astro', '.gradle', '.properties',
-            '.env', '.gitignore', '.dockerignore', '.dockerfile'
-        }
+        text_extensions = {'.py', '.txt', '.md', '.json', '.xml', '.html', '.htm', '.css', '.js', '.csv',
+                           '.log', '.ini', '.yaml', '.yml', '.toml', '.env', '.gitignore'}  # сократил
 
         try:
             items = os.listdir(self.current_path)
         except PermissionError:
             self.file_list.add_widget(
-                Label(text=self.tr.get('no_access', '[Нет доступа к папке]'),
-                      font_name='SourceBold',
-                      color=theme['stats_text'], font_size=dp(11),
-                      size_hint_y=None, height=dp(20)))
+                Label(text=self.tr.get('no_access', '[Нет доступа]'),
+                      font_name='SourceBold', color=theme['stats_text'],
+                      size_hint_y=None, height=dp(40)))
             return
         except Exception as e:
             self.file_list.add_widget(
-                Label(text=f"{self.tr.get('error', 'Ошибка')}: {str(e)[:50]}",
-                      font_name='SourceBold',
-                      color=theme['stats_text'], font_size=dp(11),
-                      size_hint_y=None, height=dp(20)))
+                Label(text=f"Ошибка: {str(e)[:60]}",
+                      font_name='SourceBold', color=theme['stats_text'],
+                      size_hint_y=None, height=dp(40)))
             return
 
         items.sort(key=str.lower)
@@ -3541,119 +3530,53 @@ class FileDialog(BoxLayout):
                 if os.path.isdir(full):
                     folders.append(item)
                 else:
-                    _, ext = os.path.splitext(item)
-                    ext_lower = ext.lower()
-                    # Показываем все текстовые файлы
-                    if ext_lower in text_extensions:
+                    _, ext = os.path.splitext(item.lower())
+                    if ext in text_extensions:
                         files.append(item)
-            except (PermissionError, OSError):
+            except:
                 continue
 
-        # Добавляем папки с иконкой MD
+        # === Папки ===
         for folder in folders:
             full = os.path.join(self.current_path, folder)
+            item_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(36), spacing=dp(8))
 
-            # Создаём горизонтальный контейнер для иконки и текста
-            item_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(5))
-
-            icon = MDIcon(
-                icon='folder',
-                font_size=f"{dp(14)}sp",
-                theme_text_color="Custom",
-                text_color=theme['text_color'],
-                size_hint_x=None,
-                width=dp(24)
-            )
+            icon = MDIcon(icon='folder', size_hint_x=None, width=dp(28),
+                          theme_text_color="Custom", text_color=theme['text_color'])
             item_box.add_widget(icon)
 
             btn = MDRectangleFlatButton(
-                text=folder,
-                font_name='SourceBold',
-                theme_text_color="Custom",
-                text_color=theme['text_color'],
-                line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.3)),
-                font_size=dp(12),
-                size_hint_x=1,
-                halign='left'
+                text=folder, font_name='SourceBold', size_hint_x=1, halign='left',
+                text_color=theme['text_color'], line_color=theme.get('separator_color')
             )
             btn.bind(on_release=lambda x, p=full: self._change_path(p))
             item_box.add_widget(btn)
-
             self.file_list.add_widget(item_box)
 
-        # Добавляем файлы с MD иконками в зависимости от типа
+        # === Файлы ===
         for file in files:
             full = os.path.join(self.current_path, file)
-            _, ext = os.path.splitext(file)
-            ext_lower = ext.lower()
+            _, ext = os.path.splitext(file.lower())
+            icon_name = 'language-python' if ext == '.py' else 'file-document'
 
-            # Выбираем иконку MD в зависимости от типа файла
-            icon_name = 'file-document'
-            if ext_lower == '.py':
-                icon_name = 'language-python'
-            elif ext_lower == '.txt':
-                icon_name = 'file-document-outline'
-            elif ext_lower == '.md':
-                icon_name = 'markdown'
-            elif ext_lower == '.json':
-                icon_name = 'code-json'
-            elif ext_lower in ('.html', '.htm'):
-                icon_name = 'language-html5'
-            elif ext_lower == '.css':
-                icon_name = 'language-css3'
-            elif ext_lower == '.js':
-                icon_name = 'language-javascript'
-            elif ext_lower == '.xml':
-                icon_name = 'language-xml'
-            elif ext_lower == '.csv':
-                icon_name = 'file-delimited'
-            elif ext_lower == '.log':
-                icon_name = 'file-send'
-            elif ext_lower in ('.yaml', '.yml'):
-                icon_name = 'code-braces'
-            elif ext_lower in ('.sh', '.bash'):
-                icon_name = 'console'
-            elif ext_lower in ('.java', '.c', '.cpp', '.h'):
-                icon_name = 'language-c'
-            elif ext_lower == '.sql':
-                icon_name = 'database'
-            else:
-                icon_name = 'file-document'
+            item_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(36), spacing=dp(8))
 
-            # Создаём контейнер для файла
-            item_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(32), spacing=dp(5))
-
-            icon = MDIcon(
-                icon=icon_name,
-                font_size=f"{dp(14)}sp",
-                theme_text_color="Custom",
-                text_color=theme['text_color'],
-                size_hint_x=None,
-                width=dp(24)
-            )
+            icon = MDIcon(icon=icon_name, size_hint_x=None, width=dp(28),
+                          theme_text_color="Custom", text_color=theme['text_color'])
             item_box.add_widget(icon)
 
             btn = MDRectangleFlatButton(
-                text=file,
-                font_name='SourceBold',
-                theme_text_color="Custom",
-                text_color=theme['text_color'],
-                line_color=theme.get('separator_color', (0.5, 0.5, 0.5, 0.3)),
-                font_size=dp(12),
-                size_hint_x=1,
-                halign='left'
+                text=file, font_name='SourceBold', size_hint_x=1, halign='left',
+                text_color=theme['text_color'], line_color=theme.get('separator_color')
             )
             btn.bind(on_release=lambda x, p=full: self._select_file(p))
             item_box.add_widget(btn)
-
             self.file_list.add_widget(item_box)
 
         if not folders and not files:
             self.file_list.add_widget(
-                Label(text=self.tr.get('empty', '[Пусто]'),
-                      font_name='SourceBold',
-                      color=theme['stats_text'],
-                      font_size=dp(11), size_hint_y=None, height=dp(20)))
+                Label(text=self.tr.get('empty', '[Пусто]'), font_name='SourceBold',
+                      color=theme['stats_text'], size_hint_y=None, height=dp(40)))
 
     def _select_file(self, path):
         """Выбирает файл и подсвечивает его"""
@@ -5211,6 +5134,10 @@ class PythonLearningApp(MDApp):
         self._ui_ready = False
         self._pending_operations = []
         self._cleanup_scheduled = False
+
+        # === НОВОЕ: Инициализация пути для файлового менеджера ===
+        self.current_path = self.get_external_storage_path()
+
         ThemeManager.apply_saved_theme()
         ThemeManager.register(self)
         self._load_api_key_async()
@@ -5218,6 +5145,34 @@ class PythonLearningApp(MDApp):
         self._saved_uris = {}
         self._pending_file_uri = None
         self._pending_file_callback = None
+
+    def get_external_storage_path(self):
+        """Возвращает путь к основному хранилищу на Android"""
+        if platform == 'android':
+            try:
+                # Импортируем только на Android
+                from android.storage import primary_external_storage_path
+                path = primary_external_storage_path()
+                if path and os.path.exists(path):
+                    return path
+            except Exception as e:
+                log_error(f"primary_external_storage_path failed: {e}")
+
+            # Fallback пути
+            fallback_paths = [
+                '/storage/emulated/0',
+                '/sdcard',
+                '/storage/emulated/0/Download',
+                '/storage/emulated/0/Documents'
+            ]
+            for p in fallback_paths:
+                if os.path.exists(p):
+                    return p
+
+            return '/storage/emulated/0'
+
+        # Для ПК / тестирования
+        return os.path.expanduser('~')
 
     def _load_language(self):
         try:
@@ -5451,18 +5406,20 @@ class PythonLearningApp(MDApp):
             pass
 
     def on_start(self):
-        if not self.splash_finished:
-            # Если заставка ещё не завершена, ждём
-            Clock.schedule_once(lambda dt: self.on_start(), 0.5)
-            return
+        if platform == 'android':
+            from android.permissions import request_permissions, Permission
+            from kivy.clock import Clock
 
-        self._load_saved_folder()
+            def perm_callback(permissions, results):
+                if all(results):
+                    Clock.schedule_once(lambda dt: self.refresh_file_list(), 1.0)
+                else:
+                    self.show_result_popup("Нет доступа к файлам!\nРазрешите в настройках приложения.")
 
-        Window.clearcolor = ThemeManager.get_theme()['window_bg']
-        self._update_ui_language()
-        if self._restore_on_start:
-            Clock.schedule_once(self._restore_autosaved_code, 0.3)
-        Clock.schedule_once(lambda dt: self._preload_examples(), 0.5)
+            request_permissions([
+                Permission.READ_EXTERNAL_STORAGE,
+                Permission.WRITE_EXTERNAL_STORAGE
+            ], perm_callback)
 
     def _fix_layout_on_start(self, dt):
         try:
@@ -6124,47 +6081,125 @@ class PythonLearningApp(MDApp):
             self._show_legacy_file_dialog(is_save=False)
 
     def show_save_dialog(self, instance=None):
-        """Открывает диалог сохранения файла"""
+        """Открывает системный диалог сохранения файла"""
         if platform == 'android':
-            if hasattr(self, '_saved_uris') and 'current' in self._saved_uris:
-                uri = self._saved_uris['current']
-                if save_file_to_uri(uri, self.code_input.text):
-                    self.show_result_popup("✓ Файл сохранён")
-                    self._has_unsaved_changes = False
-                    self._update_title_saved()
-                    return
+            try:
+                from jnius import autoclass, cast
 
-            suggested_name = "script.py"
-            if self._current_file and not self._current_file.startswith('/'):
-                suggested_name = self._current_file
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                Intent = autoclass('android.content.Intent')
 
-            AndroidFilePicker.save_file(self._on_save_uri, suggested_name)
+                intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.setType("text/plain")
+                intent.putExtra(Intent.EXTRA_TITLE, "script.py")  # предлагаемое имя
+
+                # Если есть текущее имя файла — используем его
+                if self._current_file and isinstance(self._current_file, str):
+                    filename = os.path.basename(self._current_file)
+                    if filename.endswith('.py') or filename.endswith(('.txt', '.md', '.json')):
+                        intent.putExtra(Intent.EXTRA_TITLE, filename)
+
+                current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+                current_activity.startActivityForResult(intent, 1002)  # 1002 = SAVE
+
+            except Exception as e:
+                log_error(f"Save dialog error: {e}")
+                self.show_result_popup(f"❌ Ошибка открытия диалога сохранения:\n{str(e)}")
         else:
             self._show_legacy_file_dialog(is_save=True)
 
     def on_activity_result(self, request_code, result_code, intent):
-        """Обработчик результата выбора файла"""
-        RESULT_OK = -1
+        """Обработка результатов системных диалогов"""
+        if result_code != -1 or intent is None:  # не RESULT_OK
+            return
 
-        if request_code == 1001 and result_code == RESULT_OK:
-            if intent:
-                uri = intent.getData()
-                if uri:
-                    content = read_file_from_uri(uri)
-                    file_name = get_file_name_from_uri(uri)
-                    if content:
-                        self._load_selected_file(content, file_name, uri)
-                    else:
-                        self.show_result_popup("❌ Ошибка чтения файла")
+        try:
+            from jnius import autoclass
+            uri = intent.getData()
 
-        elif request_code == 1002 and result_code == RESULT_OK:
-            if intent:
-                uri = intent.getData()
-                if uri:
-                    if save_file_to_uri(uri, self.code_input.text):
-                        self.show_result_popup("✓ Файл сохранён")
-                        self._has_unsaved_changes = False
-                        self._update_title_saved()
+            if request_code == 1001:  # LOAD
+                self._read_file_from_uri(uri)
+
+            elif request_code == 1002:  # SAVE
+                self._save_file_to_uri(uri)
+
+        except Exception as e:
+            log_error(f"on_activity_result error: {e}")
+            self.show_result_popup(f"Ошибка: {str(e)}")
+
+    def _read_file_from_uri(self, uri):
+        """Чтение файла по URI"""
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+
+            content_resolver = PythonActivity.mActivity.getContentResolver()
+
+            # Получаем имя файла
+            cursor = content_resolver.query(uri, None, None, None, None)
+            filename = "unknown.py"
+            if cursor and cursor.moveToFirst():
+                OpenableColumns = autoclass('android.provider.OpenableColumns')
+                name_index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if name_index != -1:
+                    filename = cursor.getString(name_index) or "unknown.py"
+                cursor.close()
+
+            # Читаем файл
+            input_stream = content_resolver.openInputStream(uri)
+            byte_array = bytearray()
+            buffer = bytearray(8192)
+            while True:
+                length = input_stream.read(buffer)
+                if length == -1:
+                    break
+                byte_array.extend(buffer[:length])
+
+            text = byte_array.decode('utf-8', errors='replace')
+
+            self._create_new_tab(filename, text)
+            self.show_result_popup(self.tr.get('file_loaded', '✓ Файл загружен'))
+
+        except Exception as e:
+            log_error(f"_read_file_from_uri error: {e}")
+            self.show_result_popup("Не удалось прочитать файл")
+
+
+    def _save_file_to_uri(self, uri):
+        """Сохранение по URI"""
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+
+            content_resolver = PythonActivity.mActivity.getContentResolver()
+            output_stream = content_resolver.openOutputStream(uri)
+
+            text_bytes = self.code_input.text.encode('utf-8')
+            output_stream.write(text_bytes)
+            output_stream.flush()
+            output_stream.close()
+
+            self._has_unsaved_changes = False
+            self._update_title_saved()
+            self.show_result_popup(self.tr.get('file_saved', '✓ Файл сохранён'))
+
+        except Exception as e:
+            log_error(f"_save_file_to_uri error: {e}")
+            self.show_result_popup(f"❌ Не удалось сохранить:\n{str(e)}")
+
+    def _create_new_tab(self, filename, content):
+        """Создаёт новую вкладку с загруженным файлом"""
+        if hasattr(self, 'tab_manager'):
+            editor = self.tab_manager.add_tab(title=filename, text=content)
+            self._on_tab_changed(editor)
+            self._current_file = filename
+        else:
+            # Fallback если tab_manager не готов
+            self.code_input.text = content
+            self._current_file = filename
+            self._has_unsaved_changes = False
+            self._update_title_saved()
 
     def _load_selected_file(self, content, file_name, uri):
         """Загружает выбранный файл в редактор"""
@@ -7542,46 +7577,6 @@ if __name__ == '__main__':
         except:
             pass
         raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

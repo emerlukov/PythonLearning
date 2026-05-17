@@ -33,12 +33,11 @@ android.ndk = 25b
 android.archs = arm64-v8a
 
 android.permissions = INTERNET
-
-#android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE
 android.enable_androidx = True
 android.accept_sdk_license = True
 android.statusbar_color = #FFFFFF
 android.navigationbar_color = #FFFFFF
+
 android.private_storage = False
 android.allow_backup = True
 
@@ -49,7 +48,6 @@ android.copy_libs = 1
 # ========== НАСТРОЙКИ СТАБИЛЬНОСТИ ==========
 p4a.branch = develop
 p4a.hostpython_version = 3.10.7
-android.private_storage = True
 android.wakelock = False
 p4a.bootstrap = sdl2
 android.release_artifact = apk

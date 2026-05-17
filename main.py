@@ -6129,18 +6129,22 @@ class PythonLearningApp(MDApp):
             self.show_result_popup(f"Ошибка: {str(e)}")
 
     def _read_file_from_uri(self, uri):
-        """Чтение файла по URI"""
+        """Чтение файла по URI с подробной отладкой"""
+        log_error("=== START _read_file_from_uri ===")
         if not uri:
+            log_error("URI is None or empty")
             self.show_result_popup("❌ URI файла пустой")
             return
 
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            log_error("PythonActivity imported successfully")
 
             content_resolver = PythonActivity.mActivity.getContentResolver()
+            log_error("ContentResolver obtained")
 
-            # Получаем имя файла
+            # === Получаем имя файла ===
             cursor = content_resolver.query(uri, None, None, None, None)
             filename = "unknown.py"
             if cursor and cursor.moveToFirst():
@@ -6149,27 +6153,40 @@ class PythonLearningApp(MDApp):
                 if name_index != -1:
                     filename = cursor.getString(name_index) or "unknown.py"
                 cursor.close()
+            log_error(f"Filename: {filename}")
 
-            # Читаем содержимое файла
+            # === Читаем содержимое ===
             input_stream = content_resolver.openInputStream(uri)
+            log_error("InputStream opened")
+
             byte_array = bytearray()
             buffer = bytearray(8192)
+            total_read = 0
 
             while True:
                 length = input_stream.read(buffer)
                 if length == -1:
                     break
                 byte_array.extend(buffer[:length])
+                total_read += length
+
+            log_error(f"Read {total_read} bytes")
 
             text = byte_array.decode('utf-8', errors='replace')
+            log_error(f"Decoded text length: {len(text)}")
 
-            # Загружаем в редактор
+            # === Загружаем в редактор ===
             self._create_new_tab(filename, text)
+            log_error("File successfully loaded into editor")
             self.show_result_popup(self.tr.get('file_loaded', '✓ Файл загружен'))
 
         except Exception as e:
-            log_error(f"_read_file_from_uri error: {e}")
-            self.show_result_popup(f"❌ Не удалось прочитать файл:\n{str(e)[:200]}")
+            log_error(f"_read_file_from_uri CRITICAL ERROR: {e}")
+            import traceback
+            log_error(traceback.format_exc())
+            self.show_result_popup(f"❌ Ошибка чтения файла:\n{str(e)[:250]}")
+        finally:
+            log_error("=== END _read_file_from_uri ===")
 
 
     def _save_file_to_uri(self, uri):

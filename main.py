@@ -2964,6 +2964,63 @@ class LineNumberTextInput(BoxLayout):
         Window.unbind(on_key_down=self._on_window_key_down)
 
 
+class ActivityResultHandler:
+    """Обработчик результатов активности для Android"""
+
+    @staticmethod
+    def start_activity_for_result(intent, request_code, callback):
+        """Запускает активность и сохраняет callback"""
+        global _pending_file_callback
+
+        try:
+            from jnius import autoclass, cast
+            from android import activity
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+
+            # Сохраняем callback
+            _pending_file_callback = callback
+
+            # Запускаем активность
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+            current_activity.startActivityForResult(intent, request_code)
+
+            # Привязываем обработчик к активности
+            ActivityResultHandler._bind_result_handler()
+
+        except Exception as e:
+            log_error(f"startActivityForResult error: {e}")
+            if callback:
+                callback(None, None, None)
+
+    @staticmethod
+    def _bind_result_handler():
+        """Привязывает обработчик результата к активности"""
+        try:
+            from jnius import autoclass, PythonJavaClass, java_method, cast
+            from android import activity
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+
+            # Создаём слушатель
+            class ActivityResultListener(PythonJavaClass):
+                __javainterfaces__ = ['android/content/DialogInterface$OnClickListener']
+
+                @java_method('(Landroid/content/DialogInterface;I)V')
+                def onClick(self, dialog, which):
+                    pass
+
+            # Проверяем, есть ли уже обработчик
+            if not hasattr(current_activity, '_kivy_result_handler'):
+                # Создаём и сохраняем обработчик
+                handler = ActivityResultListener()
+                current_activity._kivy_result_handler = handler
+
+        except Exception as e:
+            log_error(f"Bind result handler error: {e}")
+
+
 # ====================== ANDROID FILE PICKER (SAF) ======================
 class AndroidFilePicker:
     """
@@ -5159,6 +5216,8 @@ class PythonLearningApp(MDApp):
         self._load_api_key_async()
         self.splash_finished = False
         self._saved_uris = {}
+        self._pending_file_uri = None
+        self._pending_file_callback = None
 
     def _load_language(self):
         try:
@@ -5179,140 +5238,27 @@ class PythonLearningApp(MDApp):
         return 'en'
 
     def build(self):
-        # Сохраняем основной интерфейс
         main_widget = self._create_main_widget()
-
-        # Создаём ScreenManager
         sm = ScreenManager()
 
-        # Анимированная заставка
-        from animated_splash import AnimatedSplashScreen
         splash = AnimatedSplashScreen(self, name='splash')
         sm.add_widget(splash)
 
-        # Главный экран
         main_screen = Screen(name='main')
         main_screen.add_widget(main_widget)
         sm.add_widget(main_screen)
 
-        # Стартуем с заставки
         sm.current = 'splash'
 
+        # Только ОДИН РАЗ привязываем обработчик
+        if platform == 'android':
+            try:
+                from android import activity
+                activity.bind(on_activity_result=self.on_activity_result)
+            except Exception as e:
+                print(f"[ERROR] Failed to bind: {e}")
+
         return sm
-
-    def on_activity_result(self, request_code, result_code, intent):
-        """
-        Обработчик результата выбора файла из системного диалога
-        Этот метод ВЫЗЫВАЕТСЯ АВТОМАТИЧЕСКИ при возврате из Intent
-        """
-        from jnius import autoclass
-        from android import activity
-
-        RESULT_OK = -1  # Activity.RESULT_OK
-
-        print(f"[DEBUG] on_activity_result: request={request_code}, result={result_code}")
-
-        if request_code == 1001 and result_code == RESULT_OK:  # Выбор одного файла
-            if intent:
-                uri = intent.getData()
-                if uri:
-                    print(f"[DEBUG] File selected URI: {uri}")
-
-                    # Запрашиваем постоянное разрешение
-                    try:
-                        take_persistent_uri_permission(uri)
-                    except:
-                        pass
-
-                    # Читаем файл
-                    content = read_file_from_uri(uri)
-                    file_name = get_file_name_from_uri(uri)
-
-                    print(f"[DEBUG] File read: {file_name}, content length={len(content) if content else 0}")
-
-                    # Вызываем callback или直接用 метод загрузки
-                    if AndroidFilePicker._callback:
-                        AndroidFilePicker._callback(content, file_name, uri)
-                    else:
-                        # Если callback нет,直接用 метод загрузки
-                        self._load_file_from_uri(content, file_name, uri)
-
-        elif request_code == 1002 and result_code == RESULT_OK:  # Сохранение файла
-            if intent:
-                uri = intent.getData()
-                if uri:
-                    print(f"[DEBUG] Save URI: {uri}")
-                    take_persistent_uri_permission(uri)
-
-                    if AndroidFilePicker._save_callback:
-                        AndroidFilePicker._save_callback(uri)
-                    else:
-                        self._save_file_to_uri_callback(uri)
-
-        elif request_code == 1003 and result_code == RESULT_OK:  # Выбор нескольких файлов
-            if intent:
-                uris = []
-                clip_data = intent.getClipData()
-
-                if clip_data:
-                    for i in range(clip_data.getItemCount()):
-                        uri = clip_data.getItemAt(i).getUri()
-                        if uri:
-                            take_persistent_uri_permission(uri)
-                            uris.append(uri)
-                else:
-                    uri = intent.getData()
-                    if uri:
-                        take_persistent_uri_permission(uri)
-                        uris.append(uri)
-
-                if AndroidFilePicker._multiple_callback:
-                    AndroidFilePicker._multiple_callback(uris)
-
-        elif request_code == 1004 and result_code == RESULT_OK:  # Выбор папки
-            if intent:
-                uri = intent.getData()
-                if uri:
-                    take_persistent_uri_permission(uri)
-                    if AndroidFilePicker._callback:
-                        AndroidFilePicker._callback(uri)
-
-    def _load_file_from_uri(self, content, file_name, uri):
-        """
-        Загружает файл из URI в редактор
-        """
-        if content is None:
-            self.show_result_popup("❌ Ошибка при чтении файла")
-            return
-
-        print(f"[INFO] Loading file: {file_name}, size={len(content)} bytes")
-
-        # Сохраняем URI для возможности пересохранения
-        if not hasattr(self, '_saved_uris'):
-            self._saved_uris = {}
-        self._saved_uris['current'] = uri
-
-        # Устанавливаем содержимое в редактор
-        self.code_input.text = content
-
-        if hasattr(self, 'editor') and self.editor:
-            self.editor.original_lines = content.split('\n')
-            self.editor._update_line_panel()
-            Clock.schedule_once(self.editor._update_text_width, 0.1)
-
-        # Обновляем информацию о файле
-        self._current_file = file_name if file_name else "Загруженный файл"
-        self._has_unsaved_changes = False
-        self._update_title_saved()
-
-        # Обновляем заголовок вкладки
-        if hasattr(self, 'tab_manager'):
-            self.tab_manager.set_active_title(file_name if file_name else "Loaded")
-
-        # Закрываем все попапы, которые могли быть открыты
-        self.dismiss_popup()
-
-        self.show_result_popup(f"✓ Загружен: {file_name}")
 
     def _create_main_widget(self):
         """Переносим сюда ВЕСЬ код из старого метода build()"""
@@ -5494,14 +5440,13 @@ class PythonLearningApp(MDApp):
         print("✅ Splash screen finished, app ready")
 
     def _request_android_permissions(self):
-        """Запрос разрешений на чистом Android."""
         try:
             from android.permissions import request_permissions, Permission
-            request_permissions([
-                Permission.READ_EXTERNAL_STORAGE,
-                Permission.WRITE_EXTERNAL_STORAGE,
-                Permission.MANAGE_EXTERNAL_STORAGE
-            ])
+            permissions = [Permission.READ_EXTERNAL_STORAGE, Permission.WRITE_EXTERNAL_STORAGE]
+            # MANAGE_EXTERNAL_STORAGE может не быть, добавляем осторожно
+            if hasattr(Permission, 'MANAGE_EXTERNAL_STORAGE'):
+                permissions.append(Permission.MANAGE_EXTERNAL_STORAGE)
+            request_permissions(permissions)
         except:
             pass
 
@@ -6117,87 +6062,6 @@ class PythonLearningApp(MDApp):
         Clock.schedule_once(set_cursor, 0.7)
         self.show_result_popup(self.tr.get('new_file_created', '✓ New file created'))
 
-    def show_save_dialog(self, instance=None):
-        """Открывает диалог сохранения файла"""
-        if platform == 'android':
-            # Если есть URI последнего сохранения, используем его
-            if hasattr(self, '_saved_uris') and 'current' in self._saved_uris:
-                # Пересохраняем в тот же файл
-                uri = self._saved_uris['current']
-                if save_file_to_uri(uri, self.code_input.text):
-                    self.show_result_popup("✓ Файл сохранён")
-                    self._has_unsaved_changes = False
-                    self._update_title_saved()
-                    return
-
-            # Иначе предлагаем выбрать место
-            suggested_name = "script.py"
-            if self._current_file and not self._current_file.startswith('/'):
-                suggested_name = self._current_file
-
-            AndroidFilePicker.save_file(self._on_save_uri, suggested_name)
-        else:
-            # На других платформах используем старый диалог
-            self._show_legacy_file_dialog(is_save=True)
-
-    def _on_save_uri(self, uri):
-        """Обработчик URI для сохранения"""
-        if uri is None:
-            self.show_result_popup("❌ Сохранение отменено")
-            return
-
-        success = save_file_to_uri(uri, self.code_input.text)
-
-        if success:
-            # Сохраняем URI для будущих сохранений
-            self._saved_uris['current'] = uri
-
-            # Получаем имя файла
-            file_name = get_file_name_from_uri(uri)
-            self._current_file = file_name if file_name else "Сохранённый файл"
-
-            # Обновляем вкладку
-            if hasattr(self, 'tab_manager'):
-                self.tab_manager.set_active_title(file_name if file_name else "Сохранённый")
-
-            self._has_unsaved_changes = False
-            self._update_title_saved()
-            self.show_result_popup(f"✓ Файл сохранён: {file_name}")
-        else:
-            self.show_result_popup("❌ Ошибка при сохранении")
-
-    def _show_legacy_file_dialog(self, is_save=False):
-        """Старый диалог для десктопа"""
-        theme = ThemeManager.get_theme()
-        popup = Popup(
-            title=self.tr.get('save' if is_save else 'open', 'Save' if is_save else 'Open'),
-            title_color=theme['popup_title'],
-            background='',
-            background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)),
-            size_hint=(0.92, 0.85),
-            auto_dismiss=False
-        )
-
-        if is_save:
-            content = FileDialog(
-                callback=self.save_file,
-                cancel=self.dismiss_popup,
-                is_save=True,
-                popup=popup
-            )
-        else:
-            content = FileDialog(
-                callback=self.load_file,
-                cancel=self.dismiss_popup,
-                is_save=False,
-                popup=popup
-            )
-
-        popup.content = content
-        self._popup = popup
-        self._current_popup_type = 'save' if is_save else 'load'
-        popup.open()
-
     def save_file(self, path, filename):
         tr = self.tr
         try:
@@ -6234,28 +6098,149 @@ class PythonLearningApp(MDApp):
             self.show_result_popup(f"X {self.tr.get('error_save', 'Error')}:\n{e}")
 
     def show_load_dialog(self, instance=None):
-        """Открывает диалог выбора файла"""
+        """Открывает системный диалог выбора файла"""
         if platform == 'android':
-            self.dismiss_popup()  # Закрываем все попапы
+            try:
+                from jnius import autoclass, cast
 
-            # Показываем небольшой попап "Выбор файла..."
-            theme = ThemeManager.get_theme()
-            loading_popup = Popup(
-                title="",
-                content=Label(text="Opening file picker...", color=theme['text_color']),
-                size_hint=(0.5, 0.2),
-                auto_dismiss=False
-            )
-            loading_popup.open()
+                PythonActivity = autoclass('org.kivy.android.PythonActivity')
+                Intent = autoclass('android.content.Intent')
 
-            def open_picker(dt):
-                loading_popup.dismiss()
-                AndroidFilePicker.pick_file(self._on_file_selected)
+                intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.setType("*/*")
+                intent.putExtra(Intent.EXTRA_MIME_TYPES, [
+                    "text/plain", "text/x-python", "application/json",
+                    "text/markdown", "text/html", "text/css", "text/javascript"
+                ])
 
-            Clock.schedule_once(open_picker, 0.1)
+                current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+                current_activity.startActivityForResult(intent, 1001)
 
+            except Exception as e:
+                log_error(f"Error opening file picker: {e}")
+                self.show_result_popup(f"❌ Ошибка: {str(e)}")
         else:
             self._show_legacy_file_dialog(is_save=False)
+
+    def show_save_dialog(self, instance=None):
+        """Открывает диалог сохранения файла"""
+        if platform == 'android':
+            if hasattr(self, '_saved_uris') and 'current' in self._saved_uris:
+                uri = self._saved_uris['current']
+                if save_file_to_uri(uri, self.code_input.text):
+                    self.show_result_popup("✓ Файл сохранён")
+                    self._has_unsaved_changes = False
+                    self._update_title_saved()
+                    return
+
+            suggested_name = "script.py"
+            if self._current_file and not self._current_file.startswith('/'):
+                suggested_name = self._current_file
+
+            AndroidFilePicker.save_file(self._on_save_uri, suggested_name)
+        else:
+            self._show_legacy_file_dialog(is_save=True)
+
+    def on_activity_result(self, request_code, result_code, intent):
+        """Обработчик результата выбора файла"""
+        RESULT_OK = -1
+
+        if request_code == 1001 and result_code == RESULT_OK:
+            if intent:
+                uri = intent.getData()
+                if uri:
+                    content = read_file_from_uri(uri)
+                    file_name = get_file_name_from_uri(uri)
+                    if content:
+                        self._load_selected_file(content, file_name, uri)
+                    else:
+                        self.show_result_popup("❌ Ошибка чтения файла")
+
+        elif request_code == 1002 and result_code == RESULT_OK:
+            if intent:
+                uri = intent.getData()
+                if uri:
+                    if save_file_to_uri(uri, self.code_input.text):
+                        self.show_result_popup("✓ Файл сохранён")
+                        self._has_unsaved_changes = False
+                        self._update_title_saved()
+
+    def _load_selected_file(self, content, file_name, uri):
+        """Загружает выбранный файл в редактор"""
+        if not content:
+            return
+
+        self.code_input.text = content
+
+        if hasattr(self, 'editor') and self.editor:
+            self.editor.original_lines = content.split('\n')
+            self.editor._update_line_panel()
+
+        if not hasattr(self, '_saved_uris'):
+            self._saved_uris = {}
+        self._saved_uris['current'] = uri
+
+        self._current_file = file_name
+        self._has_unsaved_changes = False
+        self._update_title_saved()
+
+        if hasattr(self, 'tab_manager'):
+            self.tab_manager.set_active_title(file_name)
+
+        self.show_result_popup(f"✓ Загружен: {file_name}")
+
+    def _on_save_uri(self, uri):
+        """Обработчик URI для сохранения"""
+        if uri is None:
+            self.show_result_popup("❌ Сохранение отменено")
+            return
+
+        if save_file_to_uri(uri, self.code_input.text):
+            self._saved_uris['current'] = uri
+            file_name = get_file_name_from_uri(uri)
+            self._current_file = file_name
+
+            if hasattr(self, 'tab_manager'):
+                self.tab_manager.set_active_title(file_name)
+
+            self._has_unsaved_changes = False
+            self._update_title_saved()
+            self.show_result_popup(f"✓ Сохранён: {file_name}")
+        else:
+            self.show_result_popup("❌ Ошибка сохранения")
+
+    def _show_legacy_file_dialog(self, is_save=False):
+        """Старый диалог для десктопа"""
+        theme = ThemeManager.get_theme()
+        popup = Popup(
+            title=self.tr.get('save' if is_save else 'open', 'Save' if is_save else 'Open'),
+            title_color=theme['popup_title'],
+            background='',
+            background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)),
+            size_hint=(0.92, 0.85),
+            auto_dismiss=False
+        )
+
+        if is_save:
+            content = FileDialog(
+                callback=self.save_file,
+                cancel=self.dismiss_popup,
+                is_save=True,
+                popup=popup
+            )
+        else:
+            content = FileDialog(
+                callback=self.load_file,
+                cancel=self.dismiss_popup,
+                is_save=False,
+                popup=popup
+            )
+
+        popup.content = content
+        self._popup = popup
+        self._current_popup_type = 'save' if is_save else 'load'
+        popup.open()
 
     def _on_file_selected(self, content, file_name=None, uri=None):
         """Callback после выбора файла"""
@@ -6290,38 +6275,6 @@ class PythonLearningApp(MDApp):
     def _use_saf_picker(self):
         self.dismiss_popup()
         AndroidFilePicker.pick_file(self._on_file_selected)
-
-    def _on_file_selected(self, content, file_name=None, uri=None):
-        """Обработчик выбранного файла"""
-        if content is None:
-            self.show_result_popup("❌ Ошибка при чтении файла")
-            return
-
-        # Сохраняем URI для возможности пересохранения
-        if uri:
-            self._saved_uris['current'] = uri
-            if hasattr(self, 'tab_manager'):
-                self.tab_manager.set_active_file(uri)
-
-        # Устанавливаем содержимое в редактор
-        self.code_input.text = content
-
-        if hasattr(self, 'editor') and self.editor:
-            self.editor.original_lines = content.split('\n')
-            self.editor._update_line_panel()
-            Clock.schedule_once(self.editor._update_text_width, 0.1)
-
-        # Обновляем заголовок
-        display_name = file_name if file_name else "Загруженный файл"
-        self._current_file = display_name
-        self._has_unsaved_changes = False
-        self._update_title_saved()
-
-        # Обновляем заголовок вкладки
-        if hasattr(self, 'tab_manager'):
-            self.tab_manager.set_active_title(display_name)
-
-        self.show_result_popup(f"✓ Загружен: {display_name}")
 
     def load_file(self, selection):
         tr = self.tr

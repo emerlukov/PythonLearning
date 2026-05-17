@@ -103,6 +103,53 @@ from kivymd.uix.button import MDRectangleFlatButton, MDFlatButton
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDIcon
 
+# ====================== АДАПТАЦИЯ ПОД РАЗНЫЕ ЭКРАНЫ ======================
+from kivy.core.window import Window
+
+def get_screen_category():
+    """Определяет тип экрана по размеру (диагональ в дюймах)"""
+    width, height = Window.size
+    diagonal = (width ** 2 + height ** 2) ** 0.5 / dp(160)
+    
+    if diagonal < 5:
+        return 'small_phone'      # Маленькие телефоны (до 5")
+    elif diagonal < 6.5:
+        return 'phone'            # Обычные телефоны (5-6.5")
+    elif diagonal < 8:
+        return 'large_phone'      # Большие телефоны (6.5-8")
+    else:
+        return 'tablet'           # Планшеты (8"+)
+
+def adaptive_dp(value):
+    """Возвращает адаптивное значение dp в зависимости от экрана"""
+    category = get_screen_category()
+    if category == 'tablet':
+        return dp(value * 1.3)
+    elif category == 'large_phone':
+        return dp(value * 1.1)
+    else:
+        return dp(value)
+
+def adaptive_sp(value):
+    """Возвращает адаптивное значение sp (шрифт) в зависимости от экрана"""
+    category = get_screen_category()
+    if category == 'tablet':
+        return sp(value * 1.3)
+    elif category == 'large_phone':
+        return sp(value * 1.15)
+    else:
+        return sp(value)
+
+def get_tab_count():
+    """Возвращает количество видимых вкладок в зависимости от экрана"""
+    category = get_screen_category()
+    if category == 'tablet':
+        return 5
+    elif category == 'large_phone':
+        return 4
+    else:
+        return 3
+
 # Переменные для хранения callback
 _pending_file_callback = None
 _pending_save_callback = None
@@ -2330,14 +2377,25 @@ class LineNumberTextInput(BoxLayout):
         theme = ThemeManager.get_theme()
         lh = getattr(self.text_input, 'line_height', self._font_size * 1.2)
         n_lines = max(1, len(self.original_lines))
+        
+        # Определяем ширину панели
+        category = get_screen_category()
+        if category == 'tablet':
+            panel_width = dp(65)
+        elif category == 'large_phone':
+            panel_width = dp(55)
+        else:
+            panel_width = dp(45)
+        
         self.line_panel.clear_widgets()
         for i in range(n_lines):
             row = BoxLayout(orientation='horizontal', size_hint_y=None, height=lh)
-            lbl = Label(text=str(i + 1), font_size=self._font_size, size_hint_x=None, width=dp(33),
+            lbl = Label(text=str(i + 1), font_size=self._font_size, size_hint_x=None, width=panel_width,
                         color=theme.get('panel_text', (0.45, 0.48, 0.50, 1)), halign='right', valign='middle',
                         padding=(0, 0, dp(3), 0))
             row.add_widget(lbl)
             self.line_panel.add_widget(row)
+        
         self.line_panel.height = max(self.text_input.height, n_lines * lh)
         self._update_separator()
 
@@ -2452,7 +2510,14 @@ class LineNumberTextInput(BoxLayout):
         Clock.schedule_once(self._bind_scroll_sync, 0.1)
 
     def _create_line_panel_scroll(self):
-        self.line_panel = BoxLayout(orientation='vertical', size_hint=(None, None), width=dp(45), spacing=0)
+        category = get_screen_category()
+        if category == 'tablet':
+            panel_width = dp(65)
+        elif category == 'large_phone':
+            panel_width = dp(55)
+        else:
+            panel_width = dp(45)
+        self.line_panel = BoxLayout(orientation='vertical', size_hint=(None, None), width=panel_width, spacing=0)
         self.line_panel.bind(minimum_height=self.line_panel.setter('height'))
         theme = ThemeManager.get_theme()
         with self.line_panel.canvas.before:
@@ -2462,7 +2527,7 @@ class LineNumberTextInput(BoxLayout):
         theme = ThemeManager.get_theme()
         scroll_bar_color = theme.get('scroll_bar_color', (0.4, 0.4, 0.4, 0.9))
         scroll_bar_inactive = theme.get('scroll_bar_inactive', (0.25, 0.25, 0.25, 0.6))
-        self.line_panel_scroll = ScrollView(size_hint=(None, 1), width=dp(45), do_scroll_x=False, do_scroll_y=True,
+        self.line_panel_scroll = ScrollView(size_hint=(None, 1), width=panel_width, do_scroll_x=False, do_scroll_y=True,
                                             scroll_type=['bars'], bar_width=0, effect_cls='ScrollEffect',
                                             scroll_distance=dp(17), scroll_timeout=dp(45))
         self.line_panel_scroll.add_widget(self.line_panel)
@@ -2478,7 +2543,13 @@ class LineNumberTextInput(BoxLayout):
             CodeInput = None
         style_name = ThemeManager.get_syntax_style()
         self.current_syntax_style = style_name
-        font_size = dp(12)
+        category = get_screen_category()
+        if category == 'tablet':
+            font_size = dp(16)
+        elif category == 'large_phone':
+            font_size = dp(14)
+        else:
+            font_size = dp(12)
         padding_top = 0
         padding_bottom = 0
         if has_lexer and CodeInput:
@@ -3346,8 +3417,8 @@ class FileDialog(BoxLayout):
         self.popup = popup
         self.is_save = is_save
         self.orientation = 'vertical'
-        self.padding = dp(7)
-        self.spacing = dp(4)
+        self.padding = adaptive_dp(7)
+        self.spacing = adaptive_dp(4)
         self.selected_file = None
         theme = ThemeManager.get_theme()
         app = App.get_running_app()
@@ -3685,9 +3756,19 @@ class MyActionBar(BoxLayout):
         super().__init__(**kwargs)
         self.orientation = 'horizontal'
         self.size_hint_y = None
-        self.height = dp(38)
-        self.spacing = dp(12)
-        self.padding = [dp(2), dp(2), dp(2), dp(2)]
+        category = get_screen_category()
+        if category == 'tablet':
+            self.height = dp(52)
+            self.spacing = dp(18)
+            self.padding = [dp(4), dp(4), dp(4), dp(4)]
+        elif category == 'large_phone':
+            self.height = dp(45)
+            self.spacing = dp(15)
+            self.padding = [dp(3), dp(3), dp(3), dp(3)]
+        else:
+            self.height = dp(38)
+            self.spacing = dp(12)
+            self.padding = [dp(2), dp(2), dp(2), dp(2)]
         self.app = None
         self.text_input = text_input
         ThemeManager.register(self)
@@ -4051,9 +4132,19 @@ class MySymbolScrollBar(BoxLayout):
         super().__init__(**kwargs)
         self.orientation = 'horizontal'
         self.size_hint_y = None
-        self.height = dp(30)
-        self.spacing = dp(2)
-        self.padding = [dp(2), dp(2), dp(2), dp(2)]
+        category = get_screen_category()
+        if category == 'tablet':
+            self.height = dp(42)
+            self.spacing = dp(4)
+            self.padding = [dp(4), dp(4), dp(4), dp(4)]
+        elif category == 'large_phone':
+            self.height = dp(36)
+            self.spacing = dp(3)
+            self.padding = [dp(3), dp(3), dp(3), dp(3)]
+        else:
+            self.height = dp(30)
+            self.spacing = dp(2)
+            self.padding = [dp(2), dp(2), dp(2), dp(2)]
         self.app = None
         self.text_input = text_input
         self._saved_sel_start = None
@@ -4233,29 +4324,67 @@ class AIAssistantPopup(BoxLayout):
 
     def _create_ui(self, theme):
         tr = self.tr
+        
+        # Адаптивные размеры для AI Assistant
+        category = get_screen_category()
+        if category == 'tablet':
+            title_height = dp(24)
+            title_font = dp(16)
+            input_height = dp(50)
+            input_font = dp(14)
+            btn_height = dp(38)
+            btn_font = dp(14)
+            response_font = dp(13)
+            loading_height = dp(20)
+            loading_font = dp(11)
+        elif category == 'large_phone':
+            title_height = dp(20)
+            title_font = dp(14)
+            input_height = dp(42)
+            input_font = dp(12)
+            btn_height = dp(30)
+            btn_font = dp(12)
+            response_font = dp(11)
+            loading_height = dp(16)
+            loading_font = dp(10)
+        else:
+            title_height = dp(17)
+            title_font = dp(12)
+            input_height = dp(33)
+            input_font = dp(11)
+            btn_height = dp(23)
+            btn_font = dp(11)
+            response_font = dp(10)
+            loading_height = dp(13)
+            loading_font = dp(9)
+        
         title_label = Label(text=f'[b]{tr.get("ai_title", "AI Python Assistant")}[/b]', markup=True,
-                            color=theme['text_color'], font_size=dp(12), font_name='SourceBold', size_hint_y=None,
-                            height=dp(17))
+                            color=theme['text_color'], font_size=title_font, font_name='SourceBold', size_hint_y=None,
+                            height=title_height)
         self.add_widget(title_label)
+        
         self.question_input = TextInput(hint_text=tr.get('ai_hint', 'Ask me anything about Python...'), multiline=True,
-                                        font_size=dp(11), font_name='SourceBold', background_color=theme['input_bg'],
+                                        font_size=input_font, font_name='SourceBold', background_color=theme['input_bg'],
                                         foreground_color=theme['input_text'], hint_text_color=theme['hint_text'],
-                                        size_hint_y=None, height=dp(33), padding=(dp(5), dp(5)))
+                                        size_hint_y=None, height=input_height, padding=(dp(5), dp(5)))
         self.add_widget(self.question_input)
-        self.ask_btn = Button(text=tr.get('ai_btn', 'Ask AI'), font_name='SourceBold', size_hint_y=None, height=dp(23),
-                              background_color=theme['widget_bg'], background_normal='', background_down='',
-                              color=theme['text_color'], font_size=dp(11), bold=True)
+        
+        self.ask_btn = Button(text=tr.get('ai_btn', 'Ask AI'), font_name='SourceBold', size_hint_y=None, height=btn_height,
+                            background_color=theme['widget_bg'], background_normal='', background_down='',
+                            color=theme['text_color'], font_size=btn_font, bold=True)
         self.ask_btn.bind(on_release=self.ask_ai)
         self.add_widget(self.ask_btn)
+        
         self.response_scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False, do_scroll_y=True)
         self.response_text = TextInput(text=tr.get('ai_placeholder', 'AI response will appear here...'), readonly=True,
-                                       font_size=dp(10), font_name='SourceBold',
-                                       background_color=theme['ai_response_bg'], foreground_color=theme['editor_text'],
-                                       do_wrap=True, padding=(dp(5), dp(5)))
+                                    font_size=response_font, font_name='SourceBold',
+                                    background_color=theme['ai_response_bg'], foreground_color=theme['editor_text'],
+                                    do_wrap=True, padding=(dp(5), dp(5)))
         self.response_scroll.add_widget(self.response_text)
         self.add_widget(self.response_scroll)
-        self.loading_label = Label(text='', color=theme['text_color'], font_size=dp(9), font_name='SourceBold',
-                                   size_hint_y=None, height=dp(13))
+        
+        self.loading_label = Label(text='', color=theme['text_color'], font_size=loading_font, font_name='SourceBold',
+                                size_hint_y=None, height=loading_height)
         self.add_widget(self.loading_label)
 
     def ask_ai(self, instance):
@@ -4631,7 +4760,7 @@ class TabManager:
         self.tab_bar = None
         self.app = None
         self.tab_offset = 0
-        self.max_visible = 3
+        self.max_visible = get_tab_count()
 
     def add_tab(self, title=None, text="", file_path=None):
         if title is None:
@@ -4716,28 +4845,47 @@ class TabManager:
             self._update_tab_bar()
 
     def create_tab_bar(self, theme):
-        self.tab_bar = BoxLayout(size_hint_y=None, height=dp(30), spacing=dp(1), padding=[dp(1), dp(1), dp(1), dp(1)])
+        category = get_screen_category()
+        if category == 'tablet':
+            tab_height = dp(42)
+            tab_font_size = dp(13)
+            close_btn_size = dp(24)
+        elif category == 'large_phone':
+            tab_height = dp(36)
+            tab_font_size = dp(12)
+            close_btn_size = dp(22)
+        else:
+            tab_height = dp(30)
+            tab_font_size = dp(11)
+            close_btn_size = dp(20)
+        
+        self.tab_bar = BoxLayout(size_hint_y=None, height=tab_height, spacing=dp(1), padding=[dp(1), dp(1), dp(1), dp(1)])
         with self.tab_bar.canvas.before:
             Color(*theme.get('tab_bar_bg', theme['action_bar_bg']))
             self.tab_bg_rect = Rectangle(pos=self.tab_bar.pos, size=self.tab_bar.size)
         self.tab_bar.bind(pos=self._update_tab_bg, size=self._update_tab_bg)
+        
         self.btn_left = Button(text='◀', font_name='SourceBold', size_hint_x=None, width=dp(20),
-                               background_color=theme.get('tab_inactive_bg', theme['widget_bg']), background_normal='',
-                               background_down='', color=theme['text_color'], font_size=dp(10), bold=True)
+                            background_color=theme.get('tab_inactive_bg', theme['widget_bg']), background_normal='',
+                            background_down='', color=theme['text_color'], font_size=tab_font_size, bold=True)
         self.btn_left.bind(on_release=lambda x: self._scroll_tabs(-1))
         self.tab_bar.add_widget(self.btn_left)
+        
         self.tab_buttons_container = BoxLayout(spacing=dp(1), size_hint=(1, 1), padding=[dp(0.7), dp(2), dp(0.7), 0])
         self.tab_bar.add_widget(self.tab_buttons_container)
+        
         self.btn_right = Button(text='▶', font_name='SourceBold', size_hint_x=None, width=dp(20),
                                 background_color=theme.get('tab_inactive_bg', theme['widget_bg']), background_normal='',
-                                background_down='', color=theme['text_color'], font_size=dp(10), bold=True)
+                                background_down='', color=theme['text_color'], font_size=tab_font_size, bold=True)
         self.btn_right.bind(on_release=lambda x: self._scroll_tabs(1))
         self.tab_bar.add_widget(self.btn_right)
+        
         btn_add = Button(text='+', font_name='SourceBold', size_hint_x=None, width=dp(25),
-                         background_color=theme.get('tab_add_btn_bg', theme['widget_bg']), background_normal='',
-                         background_down='', color=theme['text_color'], font_size=dp(17), bold=True)
+                        background_color=theme.get('tab_add_btn_bg', theme['widget_bg']), background_normal='',
+                        background_down='', color=theme['text_color'], font_size=tab_font_size + 6, bold=True)
         btn_add.bind(on_release=lambda x: self._on_add_tab())
         self.tab_bar.add_widget(btn_add)
+        
         self._update_tab_bar()
         return self.tab_bar
 
@@ -5100,9 +5248,24 @@ class AutoCompleteWidget(BoxLayout):
             return
         theme = ThemeManager.get_theme()
         for word in matches:
-            btn = Button(text=word, size_hint_x=None, width=len(word) * dp(7) + dp(10), height=dp(18), font_size=dp(13),
-                         font_name='SourceBold', background_color=theme['widget_bg'], background_normal='',
-                         background_down='', color=theme['text_color'])
+            # Адаптивные размеры для автодополнения
+            category = get_screen_category()
+            if category == 'tablet':
+                btn_height = dp(26)
+                btn_font_size = dp(16)
+                char_width = dp(9)
+            elif category == 'large_phone':
+                btn_height = dp(22)
+                btn_font_size = dp(14)
+                char_width = dp(8)
+            else:
+                btn_height = dp(18)
+                btn_font_size = dp(13)
+                char_width = dp(7)
+            
+            btn = Button(text=word, size_hint_x=None, width=len(word) * char_width + dp(10), height=btn_height,
+                        font_size=btn_font_size, font_name='SourceBold', background_color=theme['widget_bg'],
+                        background_normal='', background_down='', color=theme['text_color'])
             btn.word = word
             btn.bind(on_release=self._on_suggestion_click)
             self.suggestions_box.add_widget(btn)
@@ -5237,6 +5400,8 @@ class PythonLearningApp(MDApp):
         sm.add_widget(main_screen)
 
         sm.current = 'splash'
+        
+        Window.bind(on_resize=self.on_resize)
 
         # Только ОДИН РАЗ привязываем обработчик
         if platform == 'android':
@@ -5368,9 +5533,22 @@ class PythonLearningApp(MDApp):
 
         from kivymd.uix.label import MDIcon
         from kivy.uix.behaviors import ButtonBehavior
-        run_btn_size = dp(67)
-        margin_right = dp(8)
-        margin_bottom = dp(67)
+        category = get_screen_category()
+        if category == 'tablet':
+            run_btn_size = dp(90)
+            margin_right = dp(12)
+            margin_bottom = dp(90)
+            icon_size = dp(32)
+        elif category == 'large_phone':
+            run_btn_size = dp(78)
+            margin_right = dp(10)
+            margin_bottom = dp(78)
+            icon_size = dp(28)
+        else:
+            run_btn_size = dp(67)
+            margin_right = dp(8)
+            margin_bottom = dp(67)
+            icon_size = dp(23)
 
         class RunButton(ButtonBehavior, FloatLayout):
             pass
@@ -5392,8 +5570,8 @@ class PythonLearningApp(MDApp):
                 Ellipse(pos=btn.pos, size=btn.size)
 
         self.run_btn.bind(pos=draw_round_btn, size=draw_round_btn)
-        play_icon = MDIcon(icon='play', font_size=f"{dp(23)}sp", theme_text_color="Custom", text_color=icon_color,
-                           pos_hint={"center_x": 0.5, "center_y": 0.5})
+        play_icon = MDIcon(icon='play', font_size=f"{dp(icon_size)}sp", theme_text_color="Custom", text_color=icon_color,
+                            pos_hint={"center_x": 0.5, "center_y": 0.5})
         self.run_btn.add_widget(play_icon)
 
         def set_btn_pos(instance, value):
@@ -5461,6 +5639,42 @@ class PythonLearningApp(MDApp):
                 self.editor._update_text_width(0)
         except:
             pass
+    
+    def on_resize(self, window, width, height):
+        """Обработчик изменения размера окна (при повороте экрана)"""
+        Clock.schedule_once(lambda dt: self._refresh_ui_after_resize(), 0.1)
+    
+    def _refresh_ui_after_resize(self):
+        """Обновляет UI после поворота экрана"""
+        # Обновляем кнопку запуска
+        if hasattr(self, 'run_btn'):
+            category = get_screen_category()
+            if category == 'tablet':
+                run_btn_size = dp(90)
+                margin_bottom = dp(90)
+                icon_size = dp(32)
+            elif category == 'large_phone':
+                run_btn_size = dp(78)
+                margin_bottom = dp(78)
+                icon_size = dp(28)
+            else:
+                run_btn_size = dp(67)
+                margin_bottom = dp(67)
+                icon_size = dp(23)
+            
+            self.run_btn.size = (run_btn_size, run_btn_size)
+            for child in self.run_btn.children:
+                if hasattr(child, 'font_size'):
+                    child.font_size = f"{dp(icon_size)}sp"
+        
+        # Обновляем панель вкладок
+        if hasattr(self, 'tab_manager'):
+            self.tab_manager.max_visible = get_tab_count()
+            self.tab_manager._update_tab_bar()
+        
+        # Обновляем панель номеров строк
+        if hasattr(self, 'editor') and self.editor:
+            Clock.schedule_once(self.editor._force_line_panel_refresh, 0.2)
 
     def on_pause(self):
         self.tab_manager.save_all_tabs()
@@ -5685,26 +5899,66 @@ class PythonLearningApp(MDApp):
             pass
 
     def _create_top_bar(self, theme):
-        top_bar = BoxLayout(size_hint_y=0.10, spacing=0, padding=[dp(3), dp(3), dp(3), dp(3)])
+        category = get_screen_category()
+        
+        if category == 'tablet':
+            top_bar_height = 0.08
+            padding = [dp(5), dp(5), dp(5), dp(5)]
+            spinner_font = adaptive_sp(22)
+            menu_font = adaptive_sp(28)
+            menu_width = dp(70)
+        elif category == 'large_phone':
+            top_bar_height = 0.09
+            padding = [dp(4), dp(4), dp(4), dp(4)]
+            spinner_font = adaptive_sp(20)
+            menu_font = adaptive_sp(25)
+            menu_width = dp(65)
+        else:
+            top_bar_height = 0.10
+            padding = [dp(3), dp(3), dp(3), dp(3)]
+            spinner_font = adaptive_sp(18)
+            menu_font = adaptive_sp(23)
+            menu_width = dp(60)
+        
+        top_bar = BoxLayout(size_hint_y=top_bar_height, spacing=0, padding=padding)
         with top_bar.canvas.before:
             Color(*theme.get('top_bar_bg', theme['widget_bg']))
             self.top_bar_bg_rect = Rectangle(pos=top_bar.pos, size=top_bar.size)
         top_bar.bind(pos=self._update_top_bar_bg, size=self._update_top_bar_bg)
-        self.spinner = ThemedSpinner(text=self.tr.get('examples', 'Examples'), values=self._get_example_titles(),
-                                     size_hint_x=0.70, background_color=theme['spinner_bg'], background_normal='',
-                                     background_down='', color=theme['spinner_text'], font_size=dp(18),
-                                     font_name='SourceBold', dropdown_bg=theme['spinner_dropdown_bg'],
-                                     dropdown_text_color=theme['spinner_dropdown_text'],
-                                     dropdown_selected_bg=theme['spinner_dropdown_selected_bg'])
+        
+        self.spinner = ThemedSpinner(
+            text=self.tr.get('examples', 'Examples'),
+            values=self._get_example_titles(),
+            size_hint_x=0.70,
+            background_color=theme['spinner_bg'],
+            background_normal='',
+            background_down='',
+            color=theme['spinner_text'],
+            font_size=spinner_font,
+            font_name='SourceBold',
+            dropdown_bg=theme['spinner_dropdown_bg'],
+            dropdown_text_color=theme['spinner_dropdown_text'],
+            dropdown_selected_bg=theme['spinner_dropdown_selected_bg']
+        )
         self.spinner.bind(text=self.load_example)
         self.spinner.bind(on_press=self._update_spinner_dropdown_colors)
+        
         menu_anchor = AnchorLayout(anchor_x='right', anchor_y='center', size_hint_x=0.15)
-        self.menu_button = Button(text='☰', font_name='DejaVuSans', size_hint=(None, 1), width=dp(60),
-                                  background_color=theme.get('menu_btn_bg', theme['widget_bg']), background_normal='',
-                                  background_down='', color=theme.get('menu_btn_text', theme['text_color']),
-                                  font_size=dp(23), bold=True)
+        self.menu_button = Button(
+            text='☰',
+            font_name='DejaVuSans',
+            size_hint=(None, 1),
+            width=menu_width,
+            background_color=theme.get('menu_btn_bg', theme['widget_bg']),
+            background_normal='',
+            background_down='',
+            color=theme.get('menu_btn_text', theme['text_color']),
+            font_size=menu_font,
+            bold=True
+        )
         self.menu_button.bind(on_release=self.show_context_menu)
         menu_anchor.add_widget(self.menu_button)
+        
         top_bar.add_widget(self.spinner)
         top_bar.add_widget(menu_anchor)
         return top_bar
@@ -5876,13 +6130,21 @@ class PythonLearningApp(MDApp):
             btn_layout.add_widget(btn_cancel)
             content.add_widget(btn_layout)
 
+            category = get_screen_category()
+            if category == 'tablet':
+                size_hint = (0.70, 0.30)
+            elif category == 'large_phone':
+                size_hint = (0.78, 0.32)
+            else:
+                size_hint = (0.85, 0.35)
+            
             popup = Popup(
                 title=tr.get('select_folder', 'Select Folder'),
                 title_color=theme['popup_title'],
                 background='',
                 background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)),
                 content=content,
-                size_hint=(0.85, 0.35),
+                size_hint=size_hint,
                 auto_dismiss=False
             )
 
@@ -6544,9 +6806,17 @@ class PythonLearningApp(MDApp):
             Label(text=message, color=theme['text_color'], font_size=dp(11), font_name='SourceBold', halign='center',
                   size_hint_y=None, height=dp(33)))
         btn_layout = BoxLayout(size_hint_y=None, height=dp(23), spacing=dp(4))
+        category = get_screen_category()
+        if category == 'tablet':
+            size_hint = (0.70, 0.30)
+        elif category == 'large_phone':
+            size_hint = (0.78, 0.32)
+        else:
+            size_hint = (0.85, 0.35)
+        
         popup = Popup(title=tr.get('exit_title', 'Exit'), title_color=theme['popup_title'], background='',
-                      background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
-                      size_hint=(0.85, 0.35), auto_dismiss=False)
+                    background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
+                    size_hint=size_hint, auto_dismiss=False)
         btn_save = Button(text=tr.get('save_and_exit', 'Save & Exit'), font_name='SourceBold',
                           background_color=(0.2, 0.5, 0.2, 1), background_normal='', background_down='',
                           color=theme['text_color'], font_size=dp(10), on_release=lambda x: self._on_exit_save(popup))
@@ -6730,9 +7000,17 @@ class PythonLearningApp(MDApp):
             buttons.add_widget(btn_cancel)
             buttons.add_widget(btn_ok)
             content.add_widget(buttons)
+            category = get_screen_category()
+            if category == 'tablet':
+                size_hint = (0.80, 0.40)
+            elif category == 'large_phone':
+                size_hint = (0.88, 0.42)
+            else:
+                size_hint = (0.93, 0.45)
+            
             popup = Popup(title=tr.get('input_title', 'Input'), title_color=theme['popup_title'], background='',
-                          background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
-                          size_hint=(0.93, 0.45), pos_hint={'top': 0.95}, auto_dismiss=False)
+                        background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
+                        size_hint=size_hint, pos_hint={'top': 0.95}, auto_dismiss=False)
             popup.bind(on_dismiss=lambda *args: input_event.set())
             popup.open()
 
@@ -7235,12 +7513,22 @@ def пауза():
         self.dismiss_search()
         content = SearchOnlyPopup(self.code_input)
         container = FloatLayout()
-        search_box = BoxLayout(orientation='vertical', size_hint=(0.95, 0.15), pos_hint={'top': 1.0, 'center_x': 0.5})
+        
+        # Адаптивный размер окна поиска
+        category = get_screen_category()
+        if category == 'tablet':
+            size_hint = (0.70, 0.20)
+        elif category == 'large_phone':
+            size_hint = (0.80, 0.18)
+        else:
+            size_hint = (0.95, 0.15)
+        
+        search_box = BoxLayout(orientation='vertical', size_hint=size_hint, pos_hint={'top': 1.0, 'center_x': 0.5})
         search_box.add_widget(content)
         container.add_widget(search_box)
         popup = Popup(title='', title_color=(0, 0, 0, 0), separator_color=(0, 0, 0, 0), background='',
-                      background_color=(0, 0, 0, 0), content=container, size_hint=(1, 1), auto_dismiss=False,
-                      overlay_color=(0, 0, 0, 0))
+                    background_color=(0, 0, 0, 0), content=container, size_hint=size_hint, auto_dismiss=False,
+                    overlay_color=(0, 0, 0, 0))
         content.set_popup(popup)
         content.open_popup()
         self.search_popup = popup
@@ -7249,12 +7537,22 @@ def пауза():
         self.dismiss_search()
         content = SearchReplacePopup(self.code_input)
         container = FloatLayout()
-        replace_box = BoxLayout(orientation='vertical', size_hint=(0.95, 0.22), pos_hint={'top': 1.0, 'center_x': 0.5})
+        
+        # Адаптивный размер окна поиска и замены
+        category = get_screen_category()
+        if category == 'tablet':
+            size_hint = (0.75, 0.30)
+        elif category == 'large_phone':
+            size_hint = (0.85, 0.26)
+        else:
+            size_hint = (0.95, 0.22)
+        
+        replace_box = BoxLayout(orientation='vertical', size_hint=size_hint, pos_hint={'top': 1.0, 'center_x': 0.5})
         replace_box.add_widget(content)
         container.add_widget(replace_box)
         popup = Popup(title='', title_color=(0, 0, 0, 0), separator_color=(0, 0, 0, 0), background='',
-                      background_color=(0, 0, 0, 0), content=container, size_hint=(1, 1), auto_dismiss=False,
-                      overlay_color=(0, 0, 0, 0))
+                    background_color=(0, 0, 0, 0), content=container, size_hint=size_hint, auto_dismiss=False,
+                    overlay_color=(0, 0, 0, 0))
         content.set_popup(popup)
         content.open_popup()
         self.search_popup = popup
@@ -7578,13 +7876,22 @@ def пауза():
         btn_layout.add_widget(btn_close)
         content.add_widget(btn_layout)
 
+        # Адаптивный размер Popup
+        category = get_screen_category()
+        if category == 'tablet':
+            size_hint = (0.75, 0.70)
+        elif category == 'large_phone':
+            size_hint = (0.85, 0.76)
+        else:
+            size_hint = (0.90, 0.82)
+        
         popup = ThemedPopup(
             title=tr.get('result_title', 'Result'),
             popup_bg=theme.get('popup_bg', (0.188, 0.204, 0.251, 1)),
             title_bg=theme.get('popup_title_bg', (0.188, 0.204, 0.251, 1)),
             title_color=theme['popup_title'],
             content=content,
-            size_hint=(0.90, 0.82),
+            size_hint=size_hint,   # <--- ИСПОЛЬЗУЕМ ПЕРЕМЕННУЮ
             auto_dismiss=False,
             separator_color=theme.get('popup_separator', (0.25, 0.25, 0.25, 1))
         )
@@ -7714,3 +8021,27 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

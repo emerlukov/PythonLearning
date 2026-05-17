@@ -6065,10 +6065,36 @@ class PythonLearningApp(MDApp):
 
                 intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("*/*")
+                intent.setType("*/*")   # Позволяет видеть все файлы
+
+                # Расширенный список поддерживаемых форматов
                 intent.putExtra(Intent.EXTRA_MIME_TYPES, [
-                    "text/plain", "text/x-python", "application/json",
-                    "text/markdown", "text/html", "text/css", "text/javascript"
+                    "text/plain",
+                    "text/x-python",
+                    "application/x-python-code",
+                    "application/json",
+                    "text/markdown",
+                    "text/html",
+                    "text/css",
+                    "text/javascript",
+                    "application/javascript",
+                    "text/xml",
+                    "application/xml",
+                    "text/yaml",
+                    "text/x-yaml",
+                    "application/x-yaml",
+                    "text/csv",
+                    "text/x-c",
+                    "text/x-c++",
+                    "text/x-java",
+                    "text/x-go",
+                    "text/x-rust",
+                    "text/x-shellscript",
+                    "application/sql",
+                    "text/sql",
+                    "text/x-log",
+                    "text/x-ini",
+                    "text/x-toml",
                 ])
 
                 current_activity = cast('android.app.Activity', PythonActivity.mActivity)
@@ -6076,7 +6102,7 @@ class PythonLearningApp(MDApp):
 
             except Exception as e:
                 log_error(f"Error opening file picker: {e}")
-                self.show_result_popup(f"❌ Ошибка: {str(e)}")
+                self.show_result_popup(f"Ошибка открытия диалога:\n{str(e)}")
         else:
             self._show_legacy_file_dialog(is_save=False)
 

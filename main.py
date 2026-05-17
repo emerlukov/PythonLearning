@@ -2318,6 +2318,7 @@ class LineNumberTextInput(BoxLayout):
             Clock.schedule_once(self._update_text_width, 0.05)
             Clock.schedule_once(self._update_separator, 0.1)
             Clock.schedule_once(self._update_line_panel, 0.15)
+            Clock.schedule_once(self._force_line_panel_refresh, 0.2)
             if old_cursor <= len(ti.text):
                 Clock.schedule_once(lambda x: setattr(ti, 'cursor', ti.get_cursor_from_index(old_cursor)), 0.25)
         except Exception as e:
@@ -2463,7 +2464,7 @@ class LineNumberTextInput(BoxLayout):
         scroll_bar_inactive = theme.get('scroll_bar_inactive', (0.25, 0.25, 0.25, 0.6))
         self.line_panel_scroll = ScrollView(size_hint=(None, 1), width=dp(45), do_scroll_x=False, do_scroll_y=True,
                                             scroll_type=['bars'], bar_width=0, effect_cls='ScrollEffect',
-                                            scroll_distance=dp(17), scroll_timeout=dp(33))
+                                            scroll_distance=dp(17), scroll_timeout=dp(45))
         self.line_panel_scroll.add_widget(self.line_panel)
 
     def _create_code_input_scroll(self):
@@ -2563,6 +2564,8 @@ class LineNumberTextInput(BoxLayout):
         Clock.schedule_once(self._ensure_trailing, 0)
         Clock.unschedule(self._draw_indent_guides)
         Clock.schedule_once(self._draw_indent_guides, 0.3)
+        Clock.unschedule(self._force_line_panel_refresh)
+        Clock.schedule_once(self._force_line_panel_refresh, 0.2)
 
     def _ensure_trailing(self, dt):
         self._ensure_trailing_empty_lines()
@@ -2617,6 +2620,7 @@ class LineNumberTextInput(BoxLayout):
 
     def _delayed_update_panel(self, dt):
         self._update_line_panel()
+        Clock.schedule_once(self._force_line_panel_refresh, 0.1)
 
     def _update_panel_bg(self, instance=None, value=None):
         if hasattr(self, 'panel_bg_rect'):
@@ -2648,14 +2652,18 @@ class LineNumberTextInput(BoxLayout):
             lh = self._font_size * 1.2
         theme = ThemeManager.get_theme()
         n_lines = len(self.original_lines)
-        panel_width = dp(33)
+        panel_width = self.line_panel.width
         current_widgets = len(self.line_panel.children)
+
         if current_widgets == n_lines:
+            # Обновляем существующие метки
             for i, child in enumerate(reversed(self.line_panel.children)):
                 if hasattr(child, 'children') and child.children:
                     lbl = child.children[0]
                     if isinstance(lbl, Label):
                         lbl.text = str(i + 1)
+                        lbl.width = panel_width
+                        lbl.text_size = (panel_width - dp(3), None)
             return
         diff = n_lines - current_widgets
         if 0 < diff <= 10:
@@ -2696,6 +2704,31 @@ class LineNumberTextInput(BoxLayout):
             if batch_end < n_lines:
                 Clock.schedule_once(lambda dt: None, 0)
         self.line_panel.height = max(self.text_input.height, n_lines * lh)
+        self._update_separator()
+        Clock.schedule_once(self._force_line_panel_refresh, 0.05)
+
+    def _force_line_panel_refresh(self, dt=None):
+        """Принудительно обновляет ширину и текст всех меток с номерами строк"""
+        if not hasattr(self, 'line_panel') or not self.line_panel.children:
+            return
+
+        # Получаем актуальную ширину панели
+        panel_width = self.line_panel.width
+
+        # Обновляем каждую метку
+        for i, child in enumerate(reversed(self.line_panel.children)):
+            if hasattr(child, 'children') and child.children:
+                lbl = child.children[0]
+                if isinstance(lbl, Label):
+                    # Обновляем текст (номер строки)
+                    lbl.text = str(i + 1)
+                    # Обновляем ширину и размер текста
+                    lbl.width = panel_width
+                    lbl.text_size = (panel_width - dp(3), None)
+                    # Принудительно перерисовываем
+                    lbl.texture_update()
+
+        # Обновляем разделитель
         self._update_separator()
 
     def _on_window_keyboard(self, window, key, scancode, codepoint, modifier):
@@ -7674,3 +7707,5 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+

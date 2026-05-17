@@ -6159,41 +6159,48 @@ class PythonLearningApp(MDApp):
             self._show_legacy_file_dialog(is_save=False)
 
     def show_save_dialog(self, instance=None):
-        """Открывает системный диалог сохранения файла с правильными расширениями"""
+        """Открывает системный диалог сохранения файла с выбором расширения"""
         if platform == 'android':
             try:
                 from jnius import autoclass, cast
+                from android import activity
 
                 PythonActivity = autoclass('org.kivy.android.PythonActivity')
                 Intent = autoclass('android.content.Intent')
 
                 intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("text/plain")   # базовый тип
 
-                # Предлагаемое имя файла
+                # Устанавливаем MIME тип для текстовых файлов (более широкий)
+                intent.setType("text/*")
+
+                # Предлагаемое имя файла с расширением .py по умолчанию
                 suggested_name = "script.py"
                 if self._current_file and isinstance(self._current_file, str):
+                    # Если файл уже был открыт/сохранён, предлагаем его имя
                     filename = os.path.basename(self._current_file)
-                    if filename:
+                    if filename and '.' in filename:
                         suggested_name = filename
 
                 intent.putExtra(Intent.EXTRA_TITLE, suggested_name)
 
-                # Разрешаем выбирать разные типы файлов
+                # Разрешаем выбирать разные типы файлов с разными расширениями
                 intent.putExtra(Intent.EXTRA_MIME_TYPES, [
-                    "text/plain",
-                    "text/x-python",
-                    "application/x-python-code",
-                    "application/json",
-                    "text/markdown",
-                    "text/html",
-                    "text/css",
-                    "text/javascript",
-                    "application/javascript",
-                    "text/xml",
-                    "text/yaml",
-                    "text/csv"
+                    "text/plain",  # .txt
+                    "text/x-python",  # .py
+                    "application/x-python-code",  # .py
+                    "application/json",  # .json
+                    "text/markdown",  # .md
+                    "text/html",  # .html, .htm
+                    "text/css",  # .css
+                    "text/javascript",  # .js
+                    "application/javascript",  # .js
+                    "text/xml",  # .xml
+                    "text/yaml",  # .yaml, .yml
+                    "text/csv",  # .csv
+                    "text/x-log",  # .log
+                    "text/x-ini",  # .ini, .cfg
+                    "text/x-toml",  # .toml
                 ])
 
                 current_activity = cast('android.app.Activity', PythonActivity.mActivity)
@@ -7707,5 +7714,3 @@ if __name__ == '__main__':
         except:
             pass
         raise
-
-

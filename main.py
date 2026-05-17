@@ -6130,6 +6130,10 @@ class PythonLearningApp(MDApp):
 
     def _read_file_from_uri(self, uri):
         """Чтение файла по URI"""
+        if not uri:
+            self.show_result_popup("❌ URI файла пустой")
+            return
+
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
@@ -6146,10 +6150,11 @@ class PythonLearningApp(MDApp):
                     filename = cursor.getString(name_index) or "unknown.py"
                 cursor.close()
 
-            # Читаем файл
+            # Читаем содержимое файла
             input_stream = content_resolver.openInputStream(uri)
             byte_array = bytearray()
             buffer = bytearray(8192)
+
             while True:
                 length = input_stream.read(buffer)
                 if length == -1:
@@ -6158,16 +6163,17 @@ class PythonLearningApp(MDApp):
 
             text = byte_array.decode('utf-8', errors='replace')
 
+            # Загружаем в редактор
             self._create_new_tab(filename, text)
             self.show_result_popup(self.tr.get('file_loaded', '✓ Файл загружен'))
 
         except Exception as e:
             log_error(f"_read_file_from_uri error: {e}")
-            self.show_result_popup("Не удалось прочитать файл")
+            self.show_result_popup(f"❌ Не удалось прочитать файл:\n{str(e)[:200]}")
 
 
     def _save_file_to_uri(self, uri):
-        """Сохранение по URI"""
+        """Сохранение файла"""
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
@@ -6186,17 +6192,29 @@ class PythonLearningApp(MDApp):
 
         except Exception as e:
             log_error(f"_save_file_to_uri error: {e}")
-            self.show_result_popup(f"❌ Не удалось сохранить:\n{str(e)}")
+            self.show_result_popup(f"❌ Ошибка сохранения:\n{str(e)[:150]}")
 
     def _create_new_tab(self, filename, content):
-        """Создаёт новую вкладку с загруженным файлом"""
-        if hasattr(self, 'tab_manager'):
-            editor = self.tab_manager.add_tab(title=filename, text=content)
-            self._on_tab_changed(editor)
+        """Создаёт новую вкладку и загружает в неё файл"""
+        try:
+            if hasattr(self, 'tab_manager') and self.tab_manager:
+                editor = self.tab_manager.add_tab(title=filename, text=content or "")
+                self._on_tab_changed(editor)
+            else:
+                # Fallback
+                self.code_input.text = content or ""
+                if hasattr(self, 'editor') and self.editor:
+                    self.editor.original_lines = (content or "").split('\n')
+                    self.editor._update_line_panel()
+
             self._current_file = filename
-        else:
-            # Fallback если tab_manager не готов
-            self.code_input.text = content
+            self._has_unsaved_changes = False
+            self._update_title_saved()
+
+        except Exception as e:
+            log_error(f"_create_new_tab error: {e}")
+            # Fallback
+            self.code_input.text = content or ""
             self._current_file = filename
             self._has_unsaved_changes = False
             self._update_title_saved()
@@ -7577,6 +7595,46 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

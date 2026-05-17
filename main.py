@@ -6126,7 +6126,7 @@ class PythonLearningApp(MDApp):
             self._show_legacy_file_dialog(is_save=False)
 
     def show_save_dialog(self, instance=None):
-        """Открывает системный диалог сохранения файла"""
+        """Открывает системный диалог сохранения файла с правильными расширениями"""
         if platform == 'android':
             try:
                 from jnius import autoclass, cast
@@ -6136,21 +6136,39 @@ class PythonLearningApp(MDApp):
 
                 intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("text/plain")
-                intent.putExtra(Intent.EXTRA_TITLE, "script.py")  # предлагаемое имя
+                intent.setType("text/plain")   # базовый тип
 
-                # Если есть текущее имя файла — используем его
+                # Предлагаемое имя файла
+                suggested_name = "script.py"
                 if self._current_file and isinstance(self._current_file, str):
                     filename = os.path.basename(self._current_file)
-                    if filename.endswith('.py') or filename.endswith(('.txt', '.md', '.json')):
-                        intent.putExtra(Intent.EXTRA_TITLE, filename)
+                    if filename:
+                        suggested_name = filename
+
+                intent.putExtra(Intent.EXTRA_TITLE, suggested_name)
+
+                # Разрешаем выбирать разные типы файлов
+                intent.putExtra(Intent.EXTRA_MIME_TYPES, [
+                    "text/plain",
+                    "text/x-python",
+                    "application/x-python-code",
+                    "application/json",
+                    "text/markdown",
+                    "text/html",
+                    "text/css",
+                    "text/javascript",
+                    "application/javascript",
+                    "text/xml",
+                    "text/yaml",
+                    "text/csv"
+                ])
 
                 current_activity = cast('android.app.Activity', PythonActivity.mActivity)
-                current_activity.startActivityForResult(intent, 1002)  # 1002 = SAVE
+                current_activity.startActivityForResult(intent, 1002)  # SAVE
 
             except Exception as e:
                 log_error(f"Save dialog error: {e}")
-                self.show_result_popup(f"✕ Ошибка открытия диалога сохранения:\n{str(e)}")
+                self.show_result_popup(f"Ошибка открытия диалога сохранения:\n{str(e)}")
         else:
             self._show_legacy_file_dialog(is_save=True)
 
@@ -7656,5 +7674,3 @@ if __name__ == '__main__':
         except:
             pass
         raise
-
-

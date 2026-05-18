@@ -6245,15 +6245,17 @@ class PythonLearningApp(MDApp):
     
     def _restore_run_button(self):
         """Восстанавливает иконку на кнопке запуска"""
-        if not hasattr(self, 'run_btn'):
+        print(f"[DEBUG] _restore_run_button called, run_btn={hasattr(self, 'run_btn')}")
+        
+        if not hasattr(self, 'run_btn') or self.run_btn is None:
+            print("[DEBUG] run_btn не существует!")
             return
         
-        # Ищем иконку среди детей кнопки
-        for child in self.run_btn.children:
-            if hasattr(child, 'icon') and child.icon == 'play':
-                return  # Иконка уже есть
+        print(f"[DEBUG] run_btn.children = {self.run_btn.children}")
         
-        # Если иконки нет - создаём и добавляем
+        # Очищаем и пересоздаём иконку принудительно
+        self.run_btn.clear_widgets()
+        
         from kivymd.uix.label import MDIcon
         category = get_screen_category()
         if category == 'tablet':
@@ -6278,6 +6280,7 @@ class PythonLearningApp(MDApp):
         )
         self.run_btn.add_widget(play_icon)
         self.run_btn.canvas.ask_update()
+        print("[DEBUG] Иконка добавлена")
 
     def _update_top_panels(self):
         """Обновляет обе верхние панели (при смене темы, языка или повороте)"""

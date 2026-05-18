@@ -105,50 +105,82 @@ from kivymd.uix.label import MDIcon
 
 # ====================== АДАПТАЦИЯ ПОД РАЗНЫЕ ЭКРАНЫ ======================
 from kivy.core.window import Window
+from kivy.metrics import dp
+
+
+def get_screen_width_dp():
+    """Возвращает ширину экрана в dp (независимо от плотности пикселей)"""
+    return Window.width / (Window.dpi / 160) if Window.dpi else Window.width
+
 
 def get_screen_category():
-    """Определяет тип экрана по размеру (диагональ в дюймах)"""
-    width, height = Window.size
-    diagonal = (width ** 2 + height ** 2) ** 0.5 / dp(160)
-    
-    if diagonal < 5:
-        return 'small_phone'      # Маленькие телефоны (до 5")
-    elif diagonal < 6.5:
-        return 'phone'            # Обычные телефоны (5-6.5")
-    elif diagonal < 8:
-        return 'large_phone'      # Большие телефоны (6.5-8")
-    else:
-        return 'tablet'           # Планшеты (8"+)
+    """Определяет тип экрана по ширине в dp"""
+    width_dp = get_screen_width_dp()
+
+    if width_dp < 360:  # Маленькие телефоны (iPhone SE, старые Android)
+        return 'small_phone'
+    elif width_dp < 480:  # Обычные телефоны (5-6.5")
+        return 'phone'
+    elif width_dp < 600:  # Большие телефоны (6.5-7")
+        return 'large_phone'
+    elif width_dp < 720:  # Маленькие планшеты (7-8")
+        return 'small_tablet'
+    else:  # Планшеты (8"+)
+        return 'tablet'
+
 
 def adaptive_dp(value):
-    """Возвращает адаптивное значение dp в зависимости от экрана"""
-    category = get_screen_category()
-    if category == 'tablet':
+    """Возвращает адаптивное значение dp в зависимости от ширины экрана"""
+    width_dp = get_screen_width_dp()
+
+    # Для планшетов увеличиваем размеры
+    if width_dp >= 720:
         return dp(value * 1.3)
-    elif category == 'large_phone':
-        return dp(value * 1.1)
+    elif width_dp >= 600:
+        return dp(value * 1.15)
+    elif width_dp >= 480:
+        return dp(value * 1.05)
     else:
         return dp(value)
 
+
 def adaptive_sp(value):
-    """Возвращает адаптивное значение sp (шрифт) в зависимости от экрана"""
-    category = get_screen_category()
-    if category == 'tablet':
-        return sp(value * 1.3)
-    elif category == 'large_phone':
-        return sp(value * 1.15)
+    """Возвращает адаптивное значение sp (шрифт) в зависимости от ширины экрана"""
+    width_dp = get_screen_width_dp()
+
+    if width_dp >= 720:
+        return sp(value * 1.4)
+    elif width_dp >= 600:
+        return sp(value * 1.2)
+    elif width_dp >= 480:
+        return sp(value * 1.1)
     else:
         return sp(value)
 
+
 def get_tab_count():
-    """Возвращает количество видимых вкладок в зависимости от экрана"""
-    category = get_screen_category()
-    if category == 'tablet':
-        return 5
-    elif category == 'large_phone':
-        return 4
+    """Возвращает количество видимых вкладок в зависимости от ширины экрана"""
+    width_dp = get_screen_width_dp()
+
+    if width_dp >= 720:
+        return 5  # Планшеты
+    elif width_dp >= 600:
+        return 4  # Большие телефоны
     else:
-        return 3
+        return 3  # Обычные телефоны
+
+
+def get_action_bar_spacing():
+    """Возвращает расстояние между кнопками в панели действий"""
+    width_dp = get_screen_width_dp()
+
+    if width_dp >= 720:
+        return dp(8)  # Планшеты - маленькое расстояние
+    elif width_dp >= 600:
+        return dp(10)  # Большие телефоны
+    else:
+        return dp(12)  # Обычные телефоны
+
 
 # Переменные для хранения callback
 _pending_file_callback = None
@@ -462,7 +494,7 @@ TRANSLATIONS = {
         'restart_btn': 'Перезапустить',
         'later_btn': 'Позже',
         'editor_font': 'Шрифт',
-'select_folder': 'Выбрать папку',
+        'select_folder': 'Выбрать папку',
         'folder_selected': '✓ Папка выбрана',
         'folder_select_error': ' Ошибка выбора папки',
         'select_method': 'Выберите способ',
@@ -623,7 +655,7 @@ TRANSLATIONS = {
         'restart_btn': 'Restart',
         'later_btn': 'Later',
         'editor_font': 'Font',
-'select_folder': 'Select Folder',
+        'select_folder': 'Select Folder',
         'folder_selected': '✓ Folder selected',
         'folder_select_error': ' Folder selection error',
         'select_method': 'Select method',
@@ -1881,7 +1913,8 @@ class SyntaxHighlightMenu:
         apply_text = tr.get('apply', 'Применить')
         cancel_text = tr.get('cancel', 'Отмена')
         back_text = tr.get('back', '← Назад')
-        btn_back = Button(text=back_text,font_name='DejaVuSans', background_color=theme.get('widget_bg', (0.14, 0.14, 0.15, 1)),
+        btn_back = Button(text=back_text, font_name='DejaVuSans',
+                          background_color=theme.get('widget_bg', (0.14, 0.14, 0.15, 1)),
                           background_normal='', background_down='', color=theme.get('text_color', (0, 0, 0, 1)),
                           font_size=dp(13), on_release=lambda x: self._back_to_menu())
         btn_cancel = Button(text=cancel_text, background_color=theme.get('widget_bg', (0.14, 0.14, 0.15, 1)),
@@ -2377,7 +2410,7 @@ class LineNumberTextInput(BoxLayout):
         theme = ThemeManager.get_theme()
         lh = getattr(self.text_input, 'line_height', self._font_size * 1.2)
         n_lines = max(1, len(self.original_lines))
-        
+
         # Определяем ширину панели
         category = get_screen_category()
         if category == 'tablet':
@@ -2386,7 +2419,7 @@ class LineNumberTextInput(BoxLayout):
             panel_width = dp(55)
         else:
             panel_width = dp(45)
-        
+
         self.line_panel.clear_widgets()
         for i in range(n_lines):
             row = BoxLayout(orientation='horizontal', size_hint_y=None, height=lh)
@@ -2395,7 +2428,7 @@ class LineNumberTextInput(BoxLayout):
                         padding=(0, 0, dp(3), 0))
             row.add_widget(lbl)
             self.line_panel.add_widget(row)
-        
+
         self.line_panel.height = max(self.text_input.height, n_lines * lh)
         self._update_separator()
 
@@ -3756,18 +3789,19 @@ class MyActionBar(BoxLayout):
         super().__init__(**kwargs)
         self.orientation = 'horizontal'
         self.size_hint_y = None
-        category = get_screen_category()
-        if category == 'tablet':
+        width_dp = get_screen_width_dp()
+
+        if width_dp >= 720:  # Планшеты
             self.height = dp(52)
-            self.spacing = dp(18)
+            self.spacing = dp(6)  # ← МАЛЕНЬКОЕ расстояние (кнопки ближе)
             self.padding = [dp(4), dp(4), dp(4), dp(4)]
-        elif category == 'large_phone':
+        elif width_dp >= 600:  # Большие телефоны
             self.height = dp(45)
-            self.spacing = dp(15)
+            self.spacing = dp(8)  # ← среднее расстояние
             self.padding = [dp(3), dp(3), dp(3), dp(3)]
-        else:
+        else:  # Обычные телефоны
             self.height = dp(38)
-            self.spacing = dp(12)
+            self.spacing = dp(12)  # ← стандартное расстояние
             self.padding = [dp(2), dp(2), dp(2), dp(2)]
         self.app = None
         self.text_input = text_input
@@ -4324,7 +4358,7 @@ class AIAssistantPopup(BoxLayout):
 
     def _create_ui(self, theme):
         tr = self.tr
-        
+
         # Адаптивные размеры для AI Assistant
         category = get_screen_category()
         if category == 'tablet':
@@ -4357,34 +4391,36 @@ class AIAssistantPopup(BoxLayout):
             response_font = dp(10)
             loading_height = dp(13)
             loading_font = dp(9)
-        
+
         title_label = Label(text=f'[b]{tr.get("ai_title", "AI Python Assistant")}[/b]', markup=True,
                             color=theme['text_color'], font_size=title_font, font_name='SourceBold', size_hint_y=None,
                             height=title_height)
         self.add_widget(title_label)
-        
+
         self.question_input = TextInput(hint_text=tr.get('ai_hint', 'Ask me anything about Python...'), multiline=True,
-                                        font_size=input_font, font_name='SourceBold', background_color=theme['input_bg'],
+                                        font_size=input_font, font_name='SourceBold',
+                                        background_color=theme['input_bg'],
                                         foreground_color=theme['input_text'], hint_text_color=theme['hint_text'],
                                         size_hint_y=None, height=input_height, padding=(dp(5), dp(5)))
         self.add_widget(self.question_input)
-        
-        self.ask_btn = Button(text=tr.get('ai_btn', 'Ask AI'), font_name='SourceBold', size_hint_y=None, height=btn_height,
-                            background_color=theme['widget_bg'], background_normal='', background_down='',
-                            color=theme['text_color'], font_size=btn_font, bold=True)
+
+        self.ask_btn = Button(text=tr.get('ai_btn', 'Ask AI'), font_name='SourceBold', size_hint_y=None,
+                              height=btn_height,
+                              background_color=theme['widget_bg'], background_normal='', background_down='',
+                              color=theme['text_color'], font_size=btn_font, bold=True)
         self.ask_btn.bind(on_release=self.ask_ai)
         self.add_widget(self.ask_btn)
-        
+
         self.response_scroll = ScrollView(size_hint=(1, 1), do_scroll_x=False, do_scroll_y=True)
         self.response_text = TextInput(text=tr.get('ai_placeholder', 'AI response will appear here...'), readonly=True,
-                                    font_size=response_font, font_name='SourceBold',
-                                    background_color=theme['ai_response_bg'], foreground_color=theme['editor_text'],
-                                    do_wrap=True, padding=(dp(5), dp(5)))
+                                       font_size=response_font, font_name='SourceBold',
+                                       background_color=theme['ai_response_bg'], foreground_color=theme['editor_text'],
+                                       do_wrap=True, padding=(dp(5), dp(5)))
         self.response_scroll.add_widget(self.response_text)
         self.add_widget(self.response_scroll)
-        
+
         self.loading_label = Label(text='', color=theme['text_color'], font_size=loading_font, font_name='SourceBold',
-                                size_hint_y=None, height=loading_height)
+                                   size_hint_y=None, height=loading_height)
         self.add_widget(self.loading_label)
 
     def ask_ai(self, instance):
@@ -4402,7 +4438,7 @@ class AIAssistantPopup(BoxLayout):
             try:
                 context = ssl._create_unverified_context()
                 prompt = (
-                            "You are a helpful Python programming assistant. Provide clear, concise explanations and code examples when appropriate. The user is learning Python on Android.\n\nUser question: " + question + "\n\nAnswer:")
+                        "You are a helpful Python programming assistant. Provide clear, concise explanations and code examples when appropriate. The user is learning Python on Android.\n\nUser question: " + question + "\n\nAnswer:")
                 url = f"{self.API_URL}?key={self.api_key}"
                 headers = {'Content-Type': 'application/json'}
                 data = {"contents": [{"parts": [{"text": prompt}]}],
@@ -4858,34 +4894,35 @@ class TabManager:
             tab_height = dp(30)
             tab_font_size = dp(11)
             close_btn_size = dp(20)
-        
-        self.tab_bar = BoxLayout(size_hint_y=None, height=tab_height, spacing=dp(1), padding=[dp(1), dp(1), dp(1), dp(1)])
+
+        self.tab_bar = BoxLayout(size_hint_y=None, height=tab_height, spacing=dp(1),
+                                 padding=[dp(1), dp(1), dp(1), dp(1)])
         with self.tab_bar.canvas.before:
             Color(*theme.get('tab_bar_bg', theme['action_bar_bg']))
             self.tab_bg_rect = Rectangle(pos=self.tab_bar.pos, size=self.tab_bar.size)
         self.tab_bar.bind(pos=self._update_tab_bg, size=self._update_tab_bg)
-        
+
         self.btn_left = Button(text='◀', font_name='SourceBold', size_hint_x=None, width=dp(20),
-                            background_color=theme.get('tab_inactive_bg', theme['widget_bg']), background_normal='',
-                            background_down='', color=theme['text_color'], font_size=tab_font_size, bold=True)
+                               background_color=theme.get('tab_inactive_bg', theme['widget_bg']), background_normal='',
+                               background_down='', color=theme['text_color'], font_size=tab_font_size, bold=True)
         self.btn_left.bind(on_release=lambda x: self._scroll_tabs(-1))
         self.tab_bar.add_widget(self.btn_left)
-        
+
         self.tab_buttons_container = BoxLayout(spacing=dp(1), size_hint=(1, 1), padding=[dp(0.7), dp(2), dp(0.7), 0])
         self.tab_bar.add_widget(self.tab_buttons_container)
-        
+
         self.btn_right = Button(text='▶', font_name='SourceBold', size_hint_x=None, width=dp(20),
                                 background_color=theme.get('tab_inactive_bg', theme['widget_bg']), background_normal='',
                                 background_down='', color=theme['text_color'], font_size=tab_font_size, bold=True)
         self.btn_right.bind(on_release=lambda x: self._scroll_tabs(1))
         self.tab_bar.add_widget(self.btn_right)
-        
+
         btn_add = Button(text='+', font_name='SourceBold', size_hint_x=None, width=dp(25),
-                        background_color=theme.get('tab_add_btn_bg', theme['widget_bg']), background_normal='',
-                        background_down='', color=theme['text_color'], font_size=tab_font_size + 6, bold=True)
+                         background_color=theme.get('tab_add_btn_bg', theme['widget_bg']), background_normal='',
+                         background_down='', color=theme['text_color'], font_size=tab_font_size + 6, bold=True)
         btn_add.bind(on_release=lambda x: self._on_add_tab())
         self.tab_bar.add_widget(btn_add)
-        
+
         self._update_tab_bar()
         return self.tab_bar
 
@@ -5262,10 +5299,10 @@ class AutoCompleteWidget(BoxLayout):
                 btn_height = dp(18)
                 btn_font_size = dp(13)
                 char_width = dp(7)
-            
+
             btn = Button(text=word, size_hint_x=None, width=len(word) * char_width + dp(10), height=btn_height,
-                        font_size=btn_font_size, font_name='SourceBold', background_color=theme['widget_bg'],
-                        background_normal='', background_down='', color=theme['text_color'])
+                         font_size=btn_font_size, font_name='SourceBold', background_color=theme['widget_bg'],
+                         background_normal='', background_down='', color=theme['text_color'])
             btn.word = word
             btn.bind(on_release=self._on_suggestion_click)
             self.suggestions_box.add_widget(btn)
@@ -5400,7 +5437,7 @@ class PythonLearningApp(MDApp):
         sm.add_widget(main_screen)
 
         sm.current = 'splash'
-        
+
         Window.bind(on_resize=self.on_resize)
 
         # Только ОДИН РАЗ привязываем обработчик
@@ -5570,8 +5607,9 @@ class PythonLearningApp(MDApp):
                 Ellipse(pos=btn.pos, size=btn.size)
 
         self.run_btn.bind(pos=draw_round_btn, size=draw_round_btn)
-        play_icon = MDIcon(icon='play', font_size=f"{dp(icon_size)}sp", theme_text_color="Custom", text_color=icon_color,
-                            pos_hint={"center_x": 0.5, "center_y": 0.5})
+        play_icon = MDIcon(icon='play', font_size=f"{dp(icon_size)}sp", theme_text_color="Custom",
+                           text_color=icon_color,
+                           pos_hint={"center_x": 0.5, "center_y": 0.5})
         self.run_btn.add_widget(play_icon)
 
         def set_btn_pos(instance, value):
@@ -5639,11 +5677,11 @@ class PythonLearningApp(MDApp):
                 self.editor._update_text_width(0)
         except:
             pass
-    
+
     def on_resize(self, window, width, height):
         """Обработчик изменения размера окна (при повороте экрана)"""
         Clock.schedule_once(lambda dt: self._refresh_ui_after_resize(), 0.1)
-    
+
     def _refresh_ui_after_resize(self):
         """Обновляет UI после поворота экрана"""
         # Обновляем кнопку запуска
@@ -5661,17 +5699,17 @@ class PythonLearningApp(MDApp):
                 run_btn_size = dp(67)
                 margin_bottom = dp(67)
                 icon_size = dp(23)
-            
+
             self.run_btn.size = (run_btn_size, run_btn_size)
             for child in self.run_btn.children:
                 if hasattr(child, 'font_size'):
                     child.font_size = f"{dp(icon_size)}sp"
-        
+
         # Обновляем панель вкладок
         if hasattr(self, 'tab_manager'):
             self.tab_manager.max_visible = get_tab_count()
             self.tab_manager._update_tab_bar()
-        
+
         # Обновляем панель номеров строк
         if hasattr(self, 'editor') and self.editor:
             Clock.schedule_once(self.editor._force_line_panel_refresh, 0.2)
@@ -5899,37 +5937,45 @@ class PythonLearningApp(MDApp):
             pass
 
     def _create_top_bar(self, theme):
-        category = get_screen_category()
-        
-        if category == 'tablet':
+        width_dp = get_screen_width_dp()
+
+        # Адаптивные размеры в зависимости от ширины экрана
+        if width_dp >= 720:  # Планшеты
             top_bar_height = 0.08
             padding = [dp(5), dp(5), dp(5), dp(5)]
-            spinner_font = adaptive_sp(22)
-            menu_font = adaptive_sp(28)
-            menu_width = dp(70)
-        elif category == 'large_phone':
+            spinner_font = adaptive_sp(16)
+            menu_font = adaptive_sp(20)
+            spinner_width = 0.75
+            menu_width = dp(55)
+            # Расстояние между Spinner и кнопкой меню
+            spacing = dp(8)
+        elif width_dp >= 600:  # Большие телефоны
             top_bar_height = 0.09
             padding = [dp(4), dp(4), dp(4), dp(4)]
-            spinner_font = adaptive_sp(20)
-            menu_font = adaptive_sp(25)
-            menu_width = dp(65)
-        else:
+            spinner_font = adaptive_sp(14)
+            menu_font = adaptive_sp(18)
+            spinner_width = 0.72
+            menu_width = dp(60)
+            spacing = dp(10)
+        else:  # Обычные телефоны
             top_bar_height = 0.10
             padding = [dp(3), dp(3), dp(3), dp(3)]
-            spinner_font = adaptive_sp(18)
-            menu_font = adaptive_sp(23)
+            spinner_font = adaptive_sp(12)
+            menu_font = adaptive_sp(16)
+            spinner_width = 0.70
             menu_width = dp(60)
-        
-        top_bar = BoxLayout(size_hint_y=top_bar_height, spacing=0, padding=padding)
+            spacing = dp(12)
+
+        top_bar = BoxLayout(size_hint_y=top_bar_height, spacing=spacing, padding=padding)
         with top_bar.canvas.before:
             Color(*theme.get('top_bar_bg', theme['widget_bg']))
             self.top_bar_bg_rect = Rectangle(pos=top_bar.pos, size=top_bar.size)
         top_bar.bind(pos=self._update_top_bar_bg, size=self._update_top_bar_bg)
-        
+
         self.spinner = ThemedSpinner(
             text=self.tr.get('examples', 'Examples'),
             values=self._get_example_titles(),
-            size_hint_x=0.70,
+            size_hint_x=spinner_width,
             background_color=theme['spinner_bg'],
             background_normal='',
             background_down='',
@@ -5942,8 +5988,10 @@ class PythonLearningApp(MDApp):
         )
         self.spinner.bind(text=self.load_example)
         self.spinner.bind(on_press=self._update_spinner_dropdown_colors)
-        
-        menu_anchor = AnchorLayout(anchor_x='right', anchor_y='center', size_hint_x=0.15)
+
+        # Правая часть с кнопкой меню
+        right_container = BoxLayout(size_hint_x=0.25, orientation='horizontal')
+
         self.menu_button = Button(
             text='☰',
             font_name='DejaVuSans',
@@ -5957,10 +6005,12 @@ class PythonLearningApp(MDApp):
             bold=True
         )
         self.menu_button.bind(on_release=self.show_context_menu)
-        menu_anchor.add_widget(self.menu_button)
-        
+
+        right_container.add_widget(Widget())  # Растягивающийся пустой виджет
+        right_container.add_widget(self.menu_button)
+
         top_bar.add_widget(self.spinner)
-        top_bar.add_widget(menu_anchor)
+        top_bar.add_widget(right_container)
         return top_bar
 
     def _get_example_titles(self):
@@ -6008,6 +6058,24 @@ class PythonLearningApp(MDApp):
         self._menu_dropdown.clear_widgets()
         tr = self.tr
 
+        # Адаптивная ширина меню в зависимости от экрана
+        width_dp = get_screen_width_dp()
+        if width_dp >= 720:  # Планшеты
+            menu_width = dp(220)
+            item_height = dp(42)
+            icon_size = dp(20)
+            font_size = dp(16)
+        elif width_dp >= 600:  # Большие телефоны
+            menu_width = dp(190)
+            item_height = dp(38)
+            icon_size = dp(18)
+            font_size = dp(14)
+        else:  # Обычные телефоны
+            menu_width = dp(167)
+            item_height = dp(35)
+            icon_size = dp(17)
+            font_size = dp(15)
+
         # Стилизация фона выпадающего меню
         if hasattr(self._menu_dropdown, 'container'):
             container = self._menu_dropdown.container
@@ -6039,13 +6107,13 @@ class PythonLearningApp(MDApp):
             class MenuItem(ButtonBehavior, BoxLayout):
                 pass
 
-            box = MenuItem(orientation='horizontal', size_hint_y=None, height=dp(35),
+            box = MenuItem(orientation='horizontal', size_hint_y=None, height=item_height,
                            padding=(dp(8), 0), spacing=dp(5))
 
-            icon = MDIcon(icon=icon_name, font_size=f"{dp(10)}sp", theme_text_color="Custom",
+            icon = MDIcon(icon=icon_name, font_size=f"{dp(icon_size)}sp", theme_text_color="Custom",
                           text_color=theme['text_color'], size_hint_x=None, width=dp(17))
 
-            lbl = Label(text=text, color=theme['text_color'], font_size=dp(15),
+            lbl = Label(text=text, color=theme['text_color'], font_size=font_size,
                         font_name='SourceBold', halign='left', valign='middle')
 
             box.add_widget(icon)
@@ -6065,7 +6133,7 @@ class PythonLearningApp(MDApp):
             box.bind(on_release=lambda bt, f=func: self.menu_action(bt, f))
             self._menu_dropdown.add_widget(box)
 
-        self._menu_dropdown.width = dp(167)
+        self._menu_dropdown.width = menu_width
 
     def _load_saved_folder(self):
         """Загружает сохранённую рабочую папку при старте"""
@@ -6137,7 +6205,7 @@ class PythonLearningApp(MDApp):
                 size_hint = (0.78, 0.32)
             else:
                 size_hint = (0.85, 0.35)
-            
+
             popup = Popup(
                 title=tr.get('select_folder', 'Select Folder'),
                 title_color=theme['popup_title'],
@@ -6379,7 +6447,7 @@ class PythonLearningApp(MDApp):
 
                 intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("*/*")   # Позволяет видеть все файлы
+                intent.setType("*/*")  # Позволяет видеть все файлы
 
                 # Расширенный список поддерживаемых форматов
                 intent.putExtra(Intent.EXTRA_MIME_TYPES, [
@@ -6484,10 +6552,10 @@ class PythonLearningApp(MDApp):
             if not uri:
                 return
 
-            if request_code == 1001:      # LOAD
+            if request_code == 1001:  # LOAD
                 Clock.schedule_once(lambda dt: self._read_file_from_uri(uri), 0)
 
-            elif request_code == 1002:    # SAVE
+            elif request_code == 1002:  # SAVE
                 Clock.schedule_once(lambda dt: self._save_file_to_uri(uri), 0)
 
         except Exception as e:
@@ -6813,10 +6881,10 @@ class PythonLearningApp(MDApp):
             size_hint = (0.78, 0.32)
         else:
             size_hint = (0.85, 0.35)
-        
+
         popup = Popup(title=tr.get('exit_title', 'Exit'), title_color=theme['popup_title'], background='',
-                    background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
-                    size_hint=size_hint, auto_dismiss=False)
+                      background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
+                      size_hint=size_hint, auto_dismiss=False)
         btn_save = Button(text=tr.get('save_and_exit', 'Save & Exit'), font_name='SourceBold',
                           background_color=(0.2, 0.5, 0.2, 1), background_normal='', background_down='',
                           color=theme['text_color'], font_size=dp(10), on_release=lambda x: self._on_exit_save(popup))
@@ -7007,10 +7075,10 @@ class PythonLearningApp(MDApp):
                 size_hint = (0.88, 0.42)
             else:
                 size_hint = (0.93, 0.45)
-            
+
             popup = Popup(title=tr.get('input_title', 'Input'), title_color=theme['popup_title'], background='',
-                        background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
-                        size_hint=size_hint, pos_hint={'top': 0.95}, auto_dismiss=False)
+                          background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
+                          size_hint=size_hint, pos_hint={'top': 0.95}, auto_dismiss=False)
             popup.bind(on_dismiss=lambda *args: input_event.set())
             popup.open()
 
@@ -7513,7 +7581,7 @@ def пауза():
         self.dismiss_search()
         content = SearchOnlyPopup(self.code_input)
         container = FloatLayout()
-        
+
         # Адаптивный размер окна поиска
         category = get_screen_category()
         if category == 'tablet':
@@ -7522,13 +7590,13 @@ def пауза():
             size_hint = (0.80, 0.18)
         else:
             size_hint = (0.95, 0.15)
-        
+
         search_box = BoxLayout(orientation='vertical', size_hint=size_hint, pos_hint={'top': 1.0, 'center_x': 0.5})
         search_box.add_widget(content)
         container.add_widget(search_box)
         popup = Popup(title='', title_color=(0, 0, 0, 0), separator_color=(0, 0, 0, 0), background='',
-                    background_color=(0, 0, 0, 0), content=container, size_hint=size_hint, auto_dismiss=False,
-                    overlay_color=(0, 0, 0, 0))
+                      background_color=(0, 0, 0, 0), content=container, size_hint=size_hint, auto_dismiss=False,
+                      overlay_color=(0, 0, 0, 0))
         content.set_popup(popup)
         content.open_popup()
         self.search_popup = popup
@@ -7537,7 +7605,7 @@ def пауза():
         self.dismiss_search()
         content = SearchReplacePopup(self.code_input)
         container = FloatLayout()
-        
+
         # Адаптивный размер окна поиска и замены
         category = get_screen_category()
         if category == 'tablet':
@@ -7546,13 +7614,13 @@ def пауза():
             size_hint = (0.85, 0.26)
         else:
             size_hint = (0.95, 0.22)
-        
+
         replace_box = BoxLayout(orientation='vertical', size_hint=size_hint, pos_hint={'top': 1.0, 'center_x': 0.5})
         replace_box.add_widget(content)
         container.add_widget(replace_box)
         popup = Popup(title='', title_color=(0, 0, 0, 0), separator_color=(0, 0, 0, 0), background='',
-                    background_color=(0, 0, 0, 0), content=container, size_hint=size_hint, auto_dismiss=False,
-                    overlay_color=(0, 0, 0, 0))
+                      background_color=(0, 0, 0, 0), content=container, size_hint=size_hint, auto_dismiss=False,
+                      overlay_color=(0, 0, 0, 0))
         content.set_popup(popup)
         content.open_popup()
         self.search_popup = popup
@@ -7884,14 +7952,14 @@ def пауза():
             size_hint = (0.85, 0.76)
         else:
             size_hint = (0.90, 0.82)
-        
+
         popup = ThemedPopup(
             title=tr.get('result_title', 'Result'),
             popup_bg=theme.get('popup_bg', (0.188, 0.204, 0.251, 1)),
             title_bg=theme.get('popup_title_bg', (0.188, 0.204, 0.251, 1)),
             title_color=theme['popup_title'],
             content=content,
-            size_hint=size_hint,   # <--- ИСПОЛЬЗУЕМ ПЕРЕМЕННУЮ
+            size_hint=size_hint,  # <--- ИСПОЛЬЗУЕМ ПЕРЕМЕННУЮ
             auto_dismiss=False,
             separator_color=theme.get('popup_separator', (0.25, 0.25, 0.25, 1))
         )

@@ -5692,9 +5692,9 @@ class PythonLearningApp(MDApp):
 
     def _refresh_ui_after_resize(self):
         """Обновляет UI после поворота экрана"""
-
+    
         reset_screen_cache()
-
+    
         # ========== ОБНОВЛЯЕМ ВЕРХНИЕ ПАНЕЛИ (Примеры и Меню) ==========
         if hasattr(self, '_update_top_panels'):
             self._update_top_panels()
@@ -5703,14 +5703,14 @@ class PythonLearningApp(MDApp):
             theme = ThemeManager.get_theme()
             old_top = self.top_section
             new_top = self._create_top_bar(theme)
-
+    
             if old_top and old_top.parent:
                 index = old_top.parent.children.index(old_top)
                 old_top.parent.remove_widget(old_top)
                 old_top.parent.add_widget(new_top, index=index)
-
+    
             self.top_section = new_top
-
+    
         # Обновляем спиннер, если он существует отдельно
         if hasattr(self, 'spinner'):
             try:
@@ -5721,7 +5721,7 @@ class PythonLearningApp(MDApp):
                 self.spinner.color = theme['spinner_text']
             except:
                 pass
-
+    
         # Обновляем кнопку меню
         if hasattr(self, 'menu_button'):
             try:
@@ -5730,7 +5730,7 @@ class PythonLearningApp(MDApp):
                 self.menu_button.color = theme.get('menu_btn_text', theme['text_color'])
             except:
                 pass
-
+    
         # Обновляем кнопку запуска
         if hasattr(self, 'run_btn'):
             category = get_screen_category()
@@ -5746,25 +5746,25 @@ class PythonLearningApp(MDApp):
                 run_btn_size = dp(67)
                 margin_bottom = dp(67)
                 icon_size = dp(23)
-
+    
             self.run_btn.size = (run_btn_size, run_btn_size)
             for child in self.run_btn.children:
                 if hasattr(child, 'font_size'):
                     child.font_size = f"{dp(icon_size)}sp"
-
+    
             # Обновляем позицию кнопки
             if hasattr(self, 'root_layout'):
                 x = self.root_layout.width - run_btn_size - dp(12)
                 y = margin_bottom
                 self.run_btn.pos = (x, y)
-
+    
         # Обновляем панель вкладок
         if hasattr(self, 'tab_manager'):
             self.tab_manager.max_visible = get_tab_count()
             self.tab_manager._update_tab_bar()
             theme = ThemeManager.get_theme()
             self.tab_manager.update_tab_bar_theme(theme)
-
+    
         # Обновляем action_bar (панель с кнопками undo/redo и т.д.)
         if hasattr(self, 'action_bar'):
             try:
@@ -5780,7 +5780,7 @@ class PythonLearningApp(MDApp):
                     self.action_bar.spacing = dp(12)
             except:
                 pass
-
+    
         # Обновляем symbol_bar (панель с символами)
         if hasattr(self, 'symbol_bar'):
             try:
@@ -5796,12 +5796,15 @@ class PythonLearningApp(MDApp):
                     self.symbol_bar.spacing = dp(2)
             except:
                 pass
-
+    
         # Обновляем панель номеров строк
         if hasattr(self, 'editor') and self.editor:
             Clock.schedule_once(self.editor._force_line_panel_refresh, 0.2)
             Clock.schedule_once(lambda dt: self.editor._update_line_panel(), 0.3)
             Clock.schedule_once(lambda dt: self.editor._update_text_width(), 0.4)
+        
+        # Восстанавливаем кнопку запуска
+        self._restore_run_button()
 
     def on_pause(self):
         self.tab_manager.save_all_tabs()
@@ -6235,6 +6238,17 @@ class PythonLearningApp(MDApp):
         panel.bind(pos=self._update_panel_bg, size=self._update_panel_bg)
 
         return panel
+    
+    def _restore_run_button(self):
+        """Восстанавливает иконку на кнопке запуска"""
+        if hasattr(self, 'run_btn'):
+            for child in self.run_btn.children:
+                if hasattr(child, 'icon'):
+                    child.icon = 'play'
+                if hasattr(child, 'text'):
+                    child.text = '▶'
+            # Принудительно перерисовываем кнопку
+            self.run_btn.canvas.ask_update()
 
     def _update_top_panels(self):
         """Обновляет обе верхние панели (при смене темы, языка или повороте)"""
@@ -6523,7 +6537,7 @@ class PythonLearningApp(MDApp):
         self._has_unsaved_changes = False
         self._update_title_saved()
         Clock.schedule_once(self._autosave_tabs, 1)
-
+    
         def set_cursor_to_first_line(dt):
             try:
                 if hasattr(self, 'code_input') and self.code_input:
@@ -6531,9 +6545,12 @@ class PythonLearningApp(MDApp):
                     self.code_input.focus = True
             except:
                 pass
-
+    
         Clock.schedule_once(set_cursor_to_first_line, 0.5)
         Clock.schedule_once(set_cursor_to_first_line, 0.7)
+        
+        # Восстанавливаем кнопку запуска
+        self._restore_run_button()
 
     def _autosave_tabs(self, dt=None):
         try:
@@ -6839,13 +6856,16 @@ class PythonLearningApp(MDApp):
                 if hasattr(self, 'editor') and self.editor:
                     self.editor.original_lines = (content or "").split('\n')
                     self.editor._update_line_panel()
-
+    
             self._current_file = filename
             self._has_unsaved_changes = False
             self._update_title_saved()
-
+    
             self.show_result_popup(self.tr.get('file_loaded', '✓ Файл загружен'))
-
+            
+            # Восстанавливаем кнопку запуска
+            self._restore_run_button()
+    
         except Exception as e:
             log_error(f"_load_file_into_editor error: {e}")
             self.show_result_popup("Ошибка при открытии файла в редакторе")
@@ -6855,19 +6875,22 @@ class PythonLearningApp(MDApp):
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-
+    
             content_resolver = PythonActivity.mActivity.getContentResolver()
             output_stream = content_resolver.openOutputStream(uri)
-
+    
             text_bytes = self.code_input.text.encode('utf-8')
             output_stream.write(text_bytes)
             output_stream.flush()
             output_stream.close()
-
+    
             self._has_unsaved_changes = False
             self._update_title_saved()
             self.show_result_popup(self.tr.get('file_saved', '✓ Файл сохранён'))
-
+            
+            # Восстанавливаем кнопку запуска
+            self._restore_run_button()
+    
         except Exception as e:
             log_error(f"_save_file_to_uri error: {e}")
             self.show_result_popup(f"✕ Ошибка сохранения:\n{str(e)[:150]}")
@@ -8336,24 +8359,6 @@ if __name__ == '__main__':
         except:
             pass
         raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

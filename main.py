@@ -105,81 +105,85 @@ from kivymd.uix.label import MDIcon
 
 # ====================== АДАПТАЦИЯ ПОД РАЗНЫЕ ЭКРАНЫ ======================
 from kivy.core.window import Window
-from kivy.metrics import dp
+from kivy.metrics import dp, sp
+from kivy.clock import Clock
 
-
-def get_screen_width_dp():
-    """Возвращает ширину экрана в dp (независимо от плотности пикселей)"""
-    return Window.width / (Window.dpi / 160) if Window.dpi else Window.width
+_SCREEN_CATEGORY = None
 
 
 def get_screen_category():
-    """Определяет тип экрана по ширине в dp"""
-    width_dp = get_screen_width_dp()
+    """Определяет тип экрана по реальной диагонали в дюймах"""
+    global _SCREEN_CATEGORY
+    if _SCREEN_CATEGORY:
+        return _SCREEN_CATEGORY
 
-    if width_dp < 360:  # Маленькие телефоны (iPhone SE, старые Android)
-        return 'small_phone'
-    elif width_dp < 480:  # Обычные телефоны (5-6.5")
-        return 'phone'
-    elif width_dp < 600:  # Большие телефоны (6.5-7")
-        return 'large_phone'
-    elif width_dp < 720:  # Маленькие планшеты (7-8")
-        return 'small_tablet'
-    else:  # Планшеты (8"+)
-        return 'tablet'
+    width, height = Window.size
+
+    # Получаем реальные пиксели на Android
+    if platform == 'android':
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            metrics = PythonActivity.mActivity.getResources().getDisplayMetrics()
+            width = metrics.widthPixels
+            height = metrics.heightPixels
+        except:
+            pass
+
+    diagonal_px = (width ** 2 + height ** 2) ** 0.5
+    diagonal_inch = diagonal_px / dp(160)
+
+    # КАТЕГОРИИ ЭКРАНОВ
+    if diagonal_inch < 5.5:
+        _SCREEN_CATEGORY = 'small_phone'
+    elif diagonal_inch < 7.0:
+        _SCREEN_CATEGORY = 'phone'
+    elif diagonal_inch < 10.0:
+        _SCREEN_CATEGORY = 'large_phone'
+    else:
+        _SCREEN_CATEGORY = 'tablet'
+
+    print(f"[SCREEN] {diagonal_inch:.1f}\" -> {_SCREEN_CATEGORY} ({width}x{height})")
+    return _SCREEN_CATEGORY
+
+
+def reset_screen_cache():
+    """Сбросить кэш (вызывать при повороте экрана)"""
+    global _SCREEN_CATEGORY
+    _SCREEN_CATEGORY = None
 
 
 def adaptive_dp(value):
-    """Возвращает адаптивное значение dp в зависимости от ширины экрана"""
-    width_dp = get_screen_width_dp()
-
-    # Для планшетов увеличиваем размеры
-    if width_dp >= 720:
-        return dp(value * 1.3)
-    elif width_dp >= 600:
-        return dp(value * 1.15)
-    elif width_dp >= 480:
-        return dp(value * 1.05)
+    """Адаптивный размер в dp"""
+    category = get_screen_category()
+    if category == 'tablet':
+        return dp(value * 1.6)  # ← ГЛАВНОЕ: увеличен коэффициент для планшетов
+    elif category == 'large_phone':
+        return dp(value * 1.2)
     else:
         return dp(value)
 
 
 def adaptive_sp(value):
-    """Возвращает адаптивное значение sp (шрифт) в зависимости от ширины экрана"""
-    width_dp = get_screen_width_dp()
-
-    if width_dp >= 720:
-        return sp(value * 1.4)
-    elif width_dp >= 600:
+    """Адаптивный размер шрифта в sp"""
+    category = get_screen_category()
+    if category == 'tablet':
+        return sp(value * 1.6)  # ← ГЛАВНОЕ: увеличен коэффициент для планшетов
+    elif category == 'large_phone':
         return sp(value * 1.2)
-    elif width_dp >= 480:
-        return sp(value * 1.1)
     else:
         return sp(value)
 
 
 def get_tab_count():
-    """Возвращает количество видимых вкладок в зависимости от ширины экрана"""
-    width_dp = get_screen_width_dp()
-
-    if width_dp >= 720:
-        return 5  # Планшеты
-    elif width_dp >= 600:
-        return 4  # Большие телефоны
+    """Количество видимых вкладок"""
+    category = get_screen_category()
+    if category == 'tablet':
+        return 6
+    elif category == 'large_phone':
+        return 4
     else:
-        return 3  # Обычные телефоны
-
-
-def get_action_bar_spacing():
-    """Возвращает расстояние между кнопками в панели действий"""
-    width_dp = get_screen_width_dp()
-
-    if width_dp >= 720:
-        return dp(8)  # Планшеты - маленькое расстояние
-    elif width_dp >= 600:
-        return dp(10)  # Большие телефоны
-    else:
-        return dp(12)  # Обычные телефоны
+        return 3
 
 
 # Переменные для хранения callback
@@ -3789,19 +3793,18 @@ class MyActionBar(BoxLayout):
         super().__init__(**kwargs)
         self.orientation = 'horizontal'
         self.size_hint_y = None
-        width_dp = get_screen_width_dp()
-
-        if width_dp >= 720:  # Планшеты
+        category = get_screen_category()
+        if category == 'tablet':
             self.height = dp(52)
-            self.spacing = dp(6)  # ← МАЛЕНЬКОЕ расстояние (кнопки ближе)
+            self.spacing = dp(18)
             self.padding = [dp(4), dp(4), dp(4), dp(4)]
-        elif width_dp >= 600:  # Большие телефоны
+        elif category == 'large_phone':
             self.height = dp(45)
-            self.spacing = dp(8)  # ← среднее расстояние
+            self.spacing = dp(15)
             self.padding = [dp(3), dp(3), dp(3), dp(3)]
-        else:  # Обычные телефоны
+        else:
             self.height = dp(38)
-            self.spacing = dp(12)  # ← стандартное расстояние
+            self.spacing = dp(12)
             self.padding = [dp(2), dp(2), dp(2), dp(2)]
         self.app = None
         self.text_input = text_input
@@ -5684,6 +5687,9 @@ class PythonLearningApp(MDApp):
 
     def _refresh_ui_after_resize(self):
         """Обновляет UI после поворота экрана"""
+
+        reset_screen_cache()
+
         # Обновляем кнопку запуска
         if hasattr(self, 'run_btn'):
             category = get_screen_category()
@@ -5719,7 +5725,10 @@ class PythonLearningApp(MDApp):
         return True
 
     def on_resume(self):
-        pass
+        """Вызывается при возврате в приложение"""
+        reset_screen_cache()  # Сбросить кэш категории экрана
+        Clock.schedule_once(lambda dt: self._refresh_ui_after_resize(), 0.1)
+        return True
 
     def on_stop(self):
         self.tab_manager.save_all_tabs()
@@ -5937,36 +5946,28 @@ class PythonLearningApp(MDApp):
             pass
 
     def _create_top_bar(self, theme):
-        width_dp = get_screen_width_dp()
+        category = get_screen_category()
 
-        # Адаптивные размеры в зависимости от ширины экрана
-        if width_dp >= 720:  # Планшеты
+        if category == 'tablet':
             top_bar_height = 0.08
             padding = [dp(5), dp(5), dp(5), dp(5)]
-            spinner_font = adaptive_sp(16)
-            menu_font = adaptive_sp(20)
-            spinner_width = 0.75
-            menu_width = dp(55)
-            # Расстояние между Spinner и кнопкой меню
-            spacing = dp(8)
-        elif width_dp >= 600:  # Большие телефоны
+            spinner_font = adaptive_sp(22)
+            menu_font = adaptive_sp(28)
+            menu_width = dp(70)
+        elif category == 'large_phone':
             top_bar_height = 0.09
             padding = [dp(4), dp(4), dp(4), dp(4)]
-            spinner_font = adaptive_sp(14)
-            menu_font = adaptive_sp(18)
-            spinner_width = 0.72
-            menu_width = dp(60)
-            spacing = dp(10)
-        else:  # Обычные телефоны
+            spinner_font = adaptive_sp(20)
+            menu_font = adaptive_sp(25)
+            menu_width = dp(65)
+        else:
             top_bar_height = 0.10
             padding = [dp(3), dp(3), dp(3), dp(3)]
-            spinner_font = adaptive_sp(12)
-            menu_font = adaptive_sp(16)
-            spinner_width = 0.70
+            spinner_font = adaptive_sp(18)
+            menu_font = adaptive_sp(23)
             menu_width = dp(60)
-            spacing = dp(12)
 
-        top_bar = BoxLayout(size_hint_y=top_bar_height, spacing=spacing, padding=padding)
+        top_bar = BoxLayout(size_hint_y=top_bar_height, spacing=0, padding=padding)
         with top_bar.canvas.before:
             Color(*theme.get('top_bar_bg', theme['widget_bg']))
             self.top_bar_bg_rect = Rectangle(pos=top_bar.pos, size=top_bar.size)
@@ -5975,7 +5976,7 @@ class PythonLearningApp(MDApp):
         self.spinner = ThemedSpinner(
             text=self.tr.get('examples', 'Examples'),
             values=self._get_example_titles(),
-            size_hint_x=spinner_width,
+            size_hint_x=0.70,
             background_color=theme['spinner_bg'],
             background_normal='',
             background_down='',
@@ -5989,9 +5990,7 @@ class PythonLearningApp(MDApp):
         self.spinner.bind(text=self.load_example)
         self.spinner.bind(on_press=self._update_spinner_dropdown_colors)
 
-        # Правая часть с кнопкой меню
-        right_container = BoxLayout(size_hint_x=0.25, orientation='horizontal')
-
+        menu_anchor = AnchorLayout(anchor_x='right', anchor_y='center', size_hint_x=0.15)
         self.menu_button = Button(
             text='☰',
             font_name='DejaVuSans',
@@ -6005,12 +6004,10 @@ class PythonLearningApp(MDApp):
             bold=True
         )
         self.menu_button.bind(on_release=self.show_context_menu)
-
-        right_container.add_widget(Widget())  # Растягивающийся пустой виджет
-        right_container.add_widget(self.menu_button)
+        menu_anchor.add_widget(self.menu_button)
 
         top_bar.add_widget(self.spinner)
-        top_bar.add_widget(right_container)
+        top_bar.add_widget(menu_anchor)
         return top_bar
 
     def _get_example_titles(self):
@@ -6058,24 +6055,6 @@ class PythonLearningApp(MDApp):
         self._menu_dropdown.clear_widgets()
         tr = self.tr
 
-        # Адаптивная ширина меню в зависимости от экрана
-        width_dp = get_screen_width_dp()
-        if width_dp >= 720:  # Планшеты
-            menu_width = dp(220)
-            item_height = dp(42)
-            icon_size = dp(20)
-            font_size = dp(16)
-        elif width_dp >= 600:  # Большие телефоны
-            menu_width = dp(190)
-            item_height = dp(38)
-            icon_size = dp(18)
-            font_size = dp(14)
-        else:  # Обычные телефоны
-            menu_width = dp(167)
-            item_height = dp(35)
-            icon_size = dp(17)
-            font_size = dp(15)
-
         # Стилизация фона выпадающего меню
         if hasattr(self._menu_dropdown, 'container'):
             container = self._menu_dropdown.container
@@ -6107,13 +6086,13 @@ class PythonLearningApp(MDApp):
             class MenuItem(ButtonBehavior, BoxLayout):
                 pass
 
-            box = MenuItem(orientation='horizontal', size_hint_y=None, height=item_height,
+            box = MenuItem(orientation='horizontal', size_hint_y=None, height=dp(35),
                            padding=(dp(8), 0), spacing=dp(5))
 
-            icon = MDIcon(icon=icon_name, font_size=f"{dp(icon_size)}sp", theme_text_color="Custom",
+            icon = MDIcon(icon=icon_name, font_size=f"{dp(10)}sp", theme_text_color="Custom",
                           text_color=theme['text_color'], size_hint_x=None, width=dp(17))
 
-            lbl = Label(text=text, color=theme['text_color'], font_size=font_size,
+            lbl = Label(text=text, color=theme['text_color'], font_size=dp(15),
                         font_name='SourceBold', halign='left', valign='middle')
 
             box.add_widget(icon)
@@ -6133,7 +6112,7 @@ class PythonLearningApp(MDApp):
             box.bind(on_release=lambda bt, f=func: self.menu_action(bt, f))
             self._menu_dropdown.add_widget(box)
 
-        self._menu_dropdown.width = menu_width
+        self._menu_dropdown.width = dp(167)
 
     def _load_saved_folder(self):
         """Загружает сохранённую рабочую папку при старте"""

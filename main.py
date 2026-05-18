@@ -5758,6 +5758,12 @@ class PythonLearningApp(MDApp):
                 x = self.root_layout.width - run_btn_size - dp(12)
                 y = margin_bottom
                 self.run_btn.pos = (x, y)
+            
+            # Восстанавливаем иконку на кнопке запуска
+            if hasattr(self, 'play_icon') and self.play_icon not in self.run_btn.children:
+                self.run_btn.add_widget(self.play_icon)
+            if hasattr(self, 'play_icon'):
+                self.play_icon.icon = 'play'
     
         # Обновляем панель вкладок
         if hasattr(self, 'tab_manager'):
@@ -5803,9 +5809,6 @@ class PythonLearningApp(MDApp):
             Clock.schedule_once(self.editor._force_line_panel_refresh, 0.2)
             Clock.schedule_once(lambda dt: self.editor._update_line_panel(), 0.3)
             Clock.schedule_once(lambda dt: self.editor._update_text_width(), 0.4)
-        
-        # Восстанавливаем кнопку запуска
-        self._restore_run_button()
 
     def on_pause(self):
         self.tab_manager.save_all_tabs()

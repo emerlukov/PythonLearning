@@ -2437,9 +2437,17 @@ class LineNumberTextInput(BoxLayout):
         self._update_separator()
 
     def apply_theme(self, theme):
+        self.current_theme_name = theme['name']
+        Window.clearcolor = theme['window_bg']
+
+        if hasattr(self, 'bg_color'):
+            self.bg_color.rgba = theme['app_bg']
+
+        # Обновляем верхние панели
+        if hasattr(self, '_update_top_panels'):
+            self._update_top_panels()
         if hasattr(self, 'panel_bg_color'):
             self.panel_bg_color.rgba = theme['panel_bg']
-            self._update_panel_bg()
         if hasattr(self, 'text_input'):
             new_style = ThemeManager.get_syntax_style()
             self.text_input.background_color = theme['editor_bg']
@@ -2730,17 +2738,18 @@ class LineNumberTextInput(BoxLayout):
         self._update_line_panel()
         Clock.schedule_once(self._force_line_panel_refresh, 0.1)
 
-    def _update_panel_bg(self, instance=None, value=None):
-        if hasattr(self, 'panel_bg_rect'):
-            self.panel_bg_rect.pos = self.line_panel.pos
-            self.panel_bg_rect.size = self.line_panel.size
-
     def _update_separator(self, instance=None, value=None):
         if hasattr(self, 'separator_line') and hasattr(self, 'line_panel_scroll'):
             x = self.layout.x + self.line_panel_scroll.width
             y1 = self.layout.y
             y2 = self.layout.y + self.layout.height
             self.separator_line.points = [x, y1, x, y2]
+
+    def _update_panel_bg(self, instance, value):
+        """Обновляет фон панели"""
+        if hasattr(self, 'panel_bg_rect'):
+            self.panel_bg_rect.pos = instance.pos
+            self.panel_bg_rect.size = instance.size
 
     def _update_text_width(self, *args):
         if not self.original_lines:
@@ -5454,10 +5463,6 @@ class PythonLearningApp(MDApp):
         return sm
 
     def _create_main_widget(self):
-        """Переносим сюда ВЕСЬ код из старого метода build()"""
-        # СКОПИРУЙТЕ СЮДА ВЕСЬ КОД ИЗ build()
-        # (от self._load_fonts() до return root_layout)
-
         self._load_fonts()
         self._request_android_permissions()
         self._request_storage_permission()
@@ -5471,8 +5476,8 @@ class PythonLearningApp(MDApp):
             self.bg_rect = Rectangle(size=main_layout.size, pos=main_layout.pos)
         main_layout.bind(size=self._update_bg, pos=self._update_bg)
 
-        self.top_bar = self._create_top_bar(theme)
-        main_layout.add_widget(self.top_bar)
+        self.top_section = self._create_top_bar(theme)
+        main_layout.add_widget(self.top_section)
 
         self.action_bar = MyActionBar(None)
         self.action_bar.app = self
@@ -5690,6 +5695,42 @@ class PythonLearningApp(MDApp):
 
         reset_screen_cache()
 
+        # ========== ОБНОВЛЯЕМ ВЕРХНИЕ ПАНЕЛИ (Примеры и Меню) ==========
+        if hasattr(self, '_update_top_panels'):
+            self._update_top_panels()
+        elif hasattr(self, 'top_section') and hasattr(self, '_create_top_bar'):
+            # Если нет отдельного метода, пересоздаём панели
+            theme = ThemeManager.get_theme()
+            old_top = self.top_section
+            new_top = self._create_top_bar(theme)
+
+            if old_top and old_top.parent:
+                index = old_top.parent.children.index(old_top)
+                old_top.parent.remove_widget(old_top)
+                old_top.parent.add_widget(new_top, index=index)
+
+            self.top_section = new_top
+
+        # Обновляем спиннер, если он существует отдельно
+        if hasattr(self, 'spinner'):
+            try:
+                self.spinner.values = self._get_example_titles()
+                self.spinner.text = self.tr.get('examples', 'Примеры')
+                theme = ThemeManager.get_theme()
+                self.spinner.background_color = theme['spinner_bg']
+                self.spinner.color = theme['spinner_text']
+            except:
+                pass
+
+        # Обновляем кнопку меню
+        if hasattr(self, 'menu_button'):
+            try:
+                theme = ThemeManager.get_theme()
+                self.menu_button.background_color = theme.get('menu_btn_bg', theme['widget_bg'])
+                self.menu_button.color = theme.get('menu_btn_text', theme['text_color'])
+            except:
+                pass
+
         # Обновляем кнопку запуска
         if hasattr(self, 'run_btn'):
             category = get_screen_category()
@@ -5711,14 +5752,56 @@ class PythonLearningApp(MDApp):
                 if hasattr(child, 'font_size'):
                     child.font_size = f"{dp(icon_size)}sp"
 
+            # Обновляем позицию кнопки
+            if hasattr(self, 'root_layout'):
+                x = self.root_layout.width - run_btn_size - dp(12)
+                y = margin_bottom
+                self.run_btn.pos = (x, y)
+
         # Обновляем панель вкладок
         if hasattr(self, 'tab_manager'):
             self.tab_manager.max_visible = get_tab_count()
             self.tab_manager._update_tab_bar()
+            theme = ThemeManager.get_theme()
+            self.tab_manager.update_tab_bar_theme(theme)
+
+        # Обновляем action_bar (панель с кнопками undo/redo и т.д.)
+        if hasattr(self, 'action_bar'):
+            try:
+                category = get_screen_category()
+                if category == 'tablet':
+                    self.action_bar.height = dp(52)
+                    self.action_bar.spacing = dp(18)
+                elif category == 'large_phone':
+                    self.action_bar.height = dp(45)
+                    self.action_bar.spacing = dp(15)
+                else:
+                    self.action_bar.height = dp(38)
+                    self.action_bar.spacing = dp(12)
+            except:
+                pass
+
+        # Обновляем symbol_bar (панель с символами)
+        if hasattr(self, 'symbol_bar'):
+            try:
+                category = get_screen_category()
+                if category == 'tablet':
+                    self.symbol_bar.height = dp(42)
+                    self.symbol_bar.spacing = dp(4)
+                elif category == 'large_phone':
+                    self.symbol_bar.height = dp(36)
+                    self.symbol_bar.spacing = dp(3)
+                else:
+                    self.symbol_bar.height = dp(30)
+                    self.symbol_bar.spacing = dp(2)
+            except:
+                pass
 
         # Обновляем панель номеров строк
         if hasattr(self, 'editor') and self.editor:
             Clock.schedule_once(self.editor._force_line_panel_refresh, 0.2)
+            Clock.schedule_once(lambda dt: self.editor._update_line_panel(), 0.3)
+            Clock.schedule_once(lambda dt: self.editor._update_text_width(), 0.4)
 
     def on_pause(self):
         self.tab_manager.save_all_tabs()
@@ -5928,6 +6011,16 @@ class PythonLearningApp(MDApp):
             self.top_bar_bg_rect.pos = instance.pos
             self.top_bar_bg_rect.size = instance.size
 
+    def _update_panel_bg(self, instance=None, value=None):
+        """Обновляет фон панели"""
+        if hasattr(self, 'panel_bg_rect'):
+            if instance:
+                self.panel_bg_rect.pos = instance.pos
+                self.panel_bg_rect.size = instance.size
+            else:
+                self.panel_bg_rect.pos = self.line_panel.pos
+                self.panel_bg_rect.size = self.line_panel.size
+
     def _on_main_touch_down(self, instance, touch):
         if hasattr(self, 'editor') and hasattr(self.editor, 'text_input'):
             editor = self.editor.text_input
@@ -5950,33 +6043,30 @@ class PythonLearningApp(MDApp):
 
         if category == 'tablet':
             top_bar_height = 0.08
-            padding = [dp(5), dp(5), dp(5), dp(5)]
-            spinner_font = adaptive_sp(22)
-            menu_font = adaptive_sp(28)
-            menu_width = dp(70)
+            spinner_font = adaptive_sp(18)
+            menu_font = adaptive_sp(24)
         elif category == 'large_phone':
             top_bar_height = 0.09
-            padding = [dp(4), dp(4), dp(4), dp(4)]
-            spinner_font = adaptive_sp(20)
-            menu_font = adaptive_sp(25)
-            menu_width = dp(65)
+            spinner_font = adaptive_sp(16)
+            menu_font = adaptive_sp(22)
         else:
             top_bar_height = 0.10
-            padding = [dp(3), dp(3), dp(3), dp(3)]
-            spinner_font = adaptive_sp(18)
-            menu_font = adaptive_sp(23)
-            menu_width = dp(60)
+            spinner_font = adaptive_sp(14)
+            menu_font = adaptive_sp(20)
 
-        top_bar = BoxLayout(size_hint_y=top_bar_height, spacing=0, padding=padding)
+        top_bar = BoxLayout(orientation='horizontal', size_hint_y=top_bar_height, spacing=dp(10),
+                            padding=[dp(5), dp(5), dp(5), dp(5)])
+
         with top_bar.canvas.before:
             Color(*theme.get('top_bar_bg', theme['widget_bg']))
             self.top_bar_bg_rect = Rectangle(pos=top_bar.pos, size=top_bar.size)
         top_bar.bind(pos=self._update_top_bar_bg, size=self._update_top_bar_bg)
 
+        # Spinner "Примеры" - слева
         self.spinner = ThemedSpinner(
             text=self.tr.get('examples', 'Examples'),
             values=self._get_example_titles(),
-            size_hint_x=0.70,
+            size_hint_x=0.7,
             background_color=theme['spinner_bg'],
             background_normal='',
             background_down='',
@@ -5989,13 +6079,13 @@ class PythonLearningApp(MDApp):
         )
         self.spinner.bind(text=self.load_example)
         self.spinner.bind(on_press=self._update_spinner_dropdown_colors)
+        top_bar.add_widget(self.spinner)
 
-        menu_anchor = AnchorLayout(anchor_x='right', anchor_y='center', size_hint_x=0.15)
+        # Кнопка меню - справа
         self.menu_button = Button(
             text='☰',
             font_name='DejaVuSans',
-            size_hint=(None, 1),
-            width=menu_width,
+            size_hint_x=0.15,
             background_color=theme.get('menu_btn_bg', theme['widget_bg']),
             background_normal='',
             background_down='',
@@ -6004,11 +6094,167 @@ class PythonLearningApp(MDApp):
             bold=True
         )
         self.menu_button.bind(on_release=self.show_context_menu)
-        menu_anchor.add_widget(self.menu_button)
+        top_bar.add_widget(self.menu_button)
 
-        top_bar.add_widget(self.spinner)
-        top_bar.add_widget(menu_anchor)
         return top_bar
+
+    def _create_examples_panel(self, theme, category):
+        """Создаёт панель с выпадающим списком примеров"""
+        # Определяем размеры панели
+        if category == 'tablet':
+            panel_height = dp(48)
+            spinner_font = adaptive_sp(20)
+            padding = [dp(10), dp(5), dp(10), dp(5)]
+        elif category == 'large_phone':
+            panel_height = dp(42)
+            spinner_font = adaptive_sp(18)
+            padding = [dp(8), dp(4), dp(8), dp(4)]
+        else:
+            panel_height = dp(38)
+            spinner_font = adaptive_sp(16)
+            padding = [dp(6), dp(3), dp(6), dp(3)]
+
+        # Контейнер панели
+        panel = BoxLayout(
+            orientation='horizontal',
+            size_hint_y=None,
+            height=panel_height,
+            padding=padding,
+            spacing=dp(5)
+        )
+
+        # Добавляем иконку слева (опционально)
+        from kivymd.uix.label import MDIcon
+        icon = MDIcon(
+            icon='code-tags',
+            font_size=f"{adaptive_sp(18)}sp",
+            theme_text_color="Custom",
+            text_color=theme.get('spinner_text', theme['text_color']),
+            size_hint_x=None,
+            width=adaptive_dp(30)
+        )
+        panel.add_widget(icon)
+
+        # Spinner (выпадающий список примеров)
+        self.spinner = ThemedSpinner(
+            text=self.tr.get('examples', 'Примеры'),
+            values=self._get_example_titles(),
+            size_hint_x=1.0,
+            background_color=theme['spinner_bg'],
+            background_normal='',
+            background_down='',
+            color=theme['spinner_text'],
+            font_size=spinner_font,
+            font_name='SourceBold',
+            dropdown_bg=theme['spinner_dropdown_bg'],
+            dropdown_text_color=theme['spinner_dropdown_text'],
+            dropdown_selected_bg=theme['spinner_dropdown_selected_bg']
+        )
+        self.spinner.bind(text=self.load_example)
+        self.spinner.bind(on_press=self._update_spinner_dropdown_colors)
+        panel.add_widget(self.spinner)
+
+        # Рамка для панели (опционально)
+        with panel.canvas.before:
+            Color(*theme.get('action_bar_bg', theme['widget_bg']))
+            Rectangle(pos=panel.pos, size=panel.size)
+            # Тонкая граница снизу
+            Color(*theme.get('separator_color', (0.5, 0.5, 0.5, 0.3)))
+            Line(rectangle=(panel.x, panel.y, panel.width, panel.height), width=dp(0.5))
+
+        panel.bind(pos=self._update_panel_bg, size=self._update_panel_bg)
+
+        return panel
+
+    def _create_menu_panel(self, theme, category):
+        """Создаёт панель с кнопкой меню (☰) и дополнительными кнопками"""
+        # Определяем размеры панели
+        if category == 'tablet':
+            panel_height = dp(38)
+            menu_font = adaptive_sp(32)
+            btn_width = dp(100)
+            padding = [dp(10), dp(3), dp(10), dp(3)]
+        elif category == 'large_phone':
+            panel_height = dp(32)
+            menu_font = adaptive_sp(28)
+            btn_width = dp(80)
+            padding = [dp(8), dp(2), dp(8), dp(2)]
+        else:
+            panel_height = dp(28)
+            menu_font = adaptive_sp(24)
+            btn_width = dp(70)
+            padding = [dp(6), dp(2), dp(6), dp(2)]
+
+        # Контейнер панели
+        panel = BoxLayout(
+            orientation='horizontal',
+            size_hint_y=None,
+            height=panel_height,
+            padding=padding,
+            spacing=dp(8)
+        )
+
+        # Добавляем "Растяжку" слева, чтобы кнопка меню была справа
+        spacer = Widget(size_hint_x=0.7)
+        panel.add_widget(spacer)
+
+        # Контейнер для кнопок справа
+        right_buttons = BoxLayout(
+            orientation='horizontal',
+            size_hint_x=0.3,
+            spacing=dp(5)
+        )
+
+        # Кнопка меню (☰)
+        self.menu_button = Button(
+            text='☰',
+            font_name='DejaVuSans',
+            size_hint=(1, 1),
+            background_color=theme.get('menu_btn_bg', theme['widget_bg']),
+            background_normal='',
+            background_down='',
+            color=theme.get('menu_btn_text', theme['text_color']),
+            font_size=menu_font,
+            bold=True
+        )
+        self.menu_button.bind(on_release=self.show_context_menu)
+        right_buttons.add_widget(self.menu_button)
+
+        # Дополнительная кнопка (например, быстрый доступ)
+        # Можно добавить позже при необходимости
+        # btn_quick = Button(...)
+        # right_buttons.add_widget(btn_quick)
+
+        panel.add_widget(right_buttons)
+
+        # Фон панели
+        with panel.canvas.before:
+            Color(*theme.get('action_bar_bg', theme['widget_bg']))
+            Rectangle(pos=panel.pos, size=panel.size)
+
+        panel.bind(pos=self._update_panel_bg, size=self._update_panel_bg)
+
+        return panel
+
+    def _update_top_panels(self):
+        """Обновляет обе верхние панели (при смене темы, языка или повороте)"""
+        if not hasattr(self, 'top_section'):
+            return
+
+        theme = ThemeManager.get_theme()
+        category = get_screen_category()
+
+        # Пересоздаём верхнюю секцию
+        old_top = self.top_section
+        new_top = self._create_top_bar(theme)
+
+        # Заменяем в родительском виджете
+        if old_top and old_top.parent:
+            index = old_top.parent.children.index(old_top)
+            old_top.parent.remove_widget(old_top)
+            old_top.parent.add_widget(new_top, index=index)
+
+        self.top_section = new_top
 
     def _get_example_titles(self):
         tr = self.tr
@@ -7807,6 +8053,7 @@ def пауза():
     def _update_ui_language(self):
         tr = self.tr
         self._examples_cache = None
+
         if hasattr(self, 'tab_manager'):
             # Переименовываем вкладки при смене языка
             for tab in self.tab_manager.tabs:
@@ -7823,12 +8070,18 @@ def пауза():
                     tab['title'] = new_title
             self.tab_manager._update_tab_bar()
 
+        # ========== ОБНОВЛЕНИЕ ВЕРХНИХ ПАНЕЛЕЙ ==========
+        if hasattr(self, '_update_top_panels'):
+            self._update_top_panels()  # ← ГЛАВНОЕ: обновляем обе панели
+
+        # Для обратной совместимости (если старый код)
         if hasattr(self, 'spinner'):
             try:
                 self.spinner.values = self._get_example_titles()
                 self.spinner.text = tr.get('examples', 'Examples')
             except:
                 pass
+
         if hasattr(self, 'action_bar'):
             try:
                 self.action_bar.action_keys = ['undo', 'redo', 'copy', 'paste', 'cut', 'sel_all', 'auto', 'key',
@@ -7839,16 +8092,27 @@ def пауза():
                     self.action_bar.button_container.add_widget(btn)
             except:
                 pass
+
         if hasattr(self, 'run_btn'):
             try:
                 self.run_btn.text = tr.get('run', '▶')
             except:
                 pass
+
         if hasattr(self, '_menu_dropdown'):
             try:
                 self._create_menu_items(ThemeManager.get_theme())
             except:
                 pass
+
+        # Обновляем заголовок меню (Settings) при смене языка
+        if hasattr(self, '_settings_menu') and self._settings_menu:
+            try:
+                # Пересоздаём меню настроек с новым языком
+                self._settings_menu = SettingsMenu(self)
+            except:
+                pass
+
         try:
             if self._has_unsaved_changes:
                 self._update_title_with_unsaved()
@@ -8068,27 +8332,6 @@ if __name__ == '__main__':
         except:
             pass
         raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

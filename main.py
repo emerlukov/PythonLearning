@@ -5619,7 +5619,7 @@ class PythonLearningApp(MDApp):
         play_icon = MDIcon(icon='play', font_size=f"{dp(icon_size)}sp", theme_text_color="Custom",
                            text_color=icon_color,
                            pos_hint={"center_x": 0.5, "center_y": 0.5})
-        self.run_btn.add_widget(self.play_icon)
+        self.run_btn.add_widget(play_icon)
 
         def set_btn_pos(instance, value):
             x = root_layout.width - run_btn_size - margin_right
@@ -6245,14 +6245,39 @@ class PythonLearningApp(MDApp):
     
     def _restore_run_button(self):
         """Восстанавливает иконку на кнопке запуска"""
-        if hasattr(self, 'run_btn'):
-            for child in self.run_btn.children:
-                if hasattr(child, 'icon'):
-                    child.icon = 'play'
-                if hasattr(child, 'text'):
-                    child.text = '▶'
-            # Принудительно перерисовываем кнопку
-            self.run_btn.canvas.ask_update()
+        if not hasattr(self, 'run_btn'):
+            return
+        
+        # Ищем иконку среди детей кнопки
+        for child in self.run_btn.children:
+            if hasattr(child, 'icon') and child.icon == 'play':
+                return  # Иконка уже есть
+        
+        # Если иконки нет - создаём и добавляем
+        from kivymd.uix.label import MDIcon
+        category = get_screen_category()
+        if category == 'tablet':
+            icon_size = dp(32)
+        elif category == 'large_phone':
+            icon_size = dp(28)
+        else:
+            icon_size = dp(23)
+        
+        theme = ThemeManager.get_theme()
+        if theme.get('name') == 'dark':
+            icon_color = theme.get('run_btn_text', (0.18, 0.18, 0.19, 1))
+        else:
+            icon_color = theme.get('run_btn_text', (0, 0, 0, 1))
+        
+        play_icon = MDIcon(
+            icon='play',
+            font_size=f"{icon_size}sp",
+            theme_text_color="Custom",
+            text_color=icon_color,
+            pos_hint={"center_x": 0.5, "center_y": 0.5}
+        )
+        self.run_btn.add_widget(play_icon)
+        self.run_btn.canvas.ask_update()
 
     def _update_top_panels(self):
         """Обновляет обе верхние панели (при смене темы, языка или повороте)"""

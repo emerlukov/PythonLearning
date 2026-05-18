@@ -5616,9 +5616,9 @@ class PythonLearningApp(MDApp):
                 Ellipse(pos=btn.pos, size=btn.size)
 
         self.run_btn.bind(pos=draw_round_btn, size=draw_round_btn)
-        self.play_icon = MDIcon(icon='play', font_size=f"{dp(icon_size)}sp", theme_text_color="Custom",
-                                text_color=icon_color,
-                                pos_hint={"center_x": 0.5, "center_y": 0.5})
+        play_icon = MDIcon(icon='play', font_size=f"{dp(icon_size)}sp", theme_text_color="Custom",
+                           text_color=icon_color,
+                           pos_hint={"center_x": 0.5, "center_y": 0.5})
         self.run_btn.add_widget(self.play_icon)
 
         def set_btn_pos(instance, value):

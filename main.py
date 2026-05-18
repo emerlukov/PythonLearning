@@ -5818,6 +5818,7 @@ class PythonLearningApp(MDApp):
         """Вызывается при возврате в приложение"""
         reset_screen_cache()  # Сбросить кэш категории экрана
         Clock.schedule_once(lambda dt: self._refresh_ui_after_resize(), 0.1)
+        Clock.schedule_once(lambda dt: self._restore_run_button(), 0.2)
         return True
 
     def on_stop(self):

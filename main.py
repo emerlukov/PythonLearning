@@ -6240,30 +6240,25 @@ class PythonLearningApp(MDApp):
         """Обновляет обе верхние панели (при смене темы, языка или повороте)"""
         if not hasattr(self, 'top_section') or self.top_section is None:
             return
-    
+        
         theme = ThemeManager.get_theme()
         
-        # Проверяем, есть ли родитель у top_section
-        if self.top_section.parent is None:
-            # Если нет родителя, просто обновляем существующий виджет
-            if hasattr(self, 'spinner'):
+        # Просто обновляем существующие виджеты, без пересоздания (БЕЗОПАСНЫЙ ВАРИАНТ)
+        if hasattr(self, 'spinner'):
+            try:
                 self.spinner.text = self.tr.get('examples', 'Примеры')
                 self.spinner.values = self._get_example_titles()
-            if hasattr(self, 'menu_button'):
+                self.spinner.background_color = theme['spinner_bg']
+                self.spinner.color = theme['spinner_text']
+            except:
+                pass
+        
+        if hasattr(self, 'menu_button'):
+            try:
                 self.menu_button.background_color = theme.get('menu_btn_bg', theme['widget_bg'])
                 self.menu_button.color = theme.get('menu_btn_text', theme['text_color'])
-            return
-        
-        # Пересоздаём верхнюю секцию только если есть родитель
-        old_top = self.top_section
-        new_top = self._create_top_bar(theme)
-        
-        # Заменяем в родительском виджете
-        if old_top and old_top.parent:
-            index = old_top.parent.children.index(old_top)
-            old_top.parent.remove_widget(old_top)
-            old_top.parent.add_widget(new_top, index=index)
-            self.top_section = new_top
+            except:
+                pass
 
     def _get_example_titles(self):
         tr = self.tr

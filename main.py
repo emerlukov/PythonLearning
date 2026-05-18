@@ -2443,9 +2443,10 @@ class LineNumberTextInput(BoxLayout):
         if hasattr(self, 'bg_color'):
             self.bg_color.rgba = theme['app_bg']
 
-        # Обновляем верхние панели
-        if hasattr(self, '_update_top_panels'):
-            self._update_top_panels()
+        # Обновляем верхние панели (только если есть в главном приложении)
+        app = App.get_running_app()
+        if app and hasattr(app, '_update_top_panels'):
+            app._update_top_panels()
         if hasattr(self, 'panel_bg_color'):
             self.panel_bg_color.rgba = theme['panel_bg']
         if hasattr(self, 'text_input'):
@@ -8359,6 +8360,24 @@ if __name__ == '__main__':
         except:
             pass
         raise
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

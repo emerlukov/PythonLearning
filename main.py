@@ -4553,7 +4553,7 @@ class AIAssistantPopup(BoxLayout):
                         wait_time = self.BASE_DELAY * (2 ** attempt)
                         Clock.schedule_once(lambda dt, t=wait_time: self._show_status(
                             f"{tr.get('rate_limit', 'Rate limit. Wait')} {t} {tr.get('sec', 'sec')}..."), 0)
-                        time.sleep(wait_time)
+                        threading.Event().wait(wait_time)
                         continue
                     else:
                         msg = tr.get('rate_limit_exceeded', 'Rate limit exceeded. Try later.')
@@ -5586,6 +5586,26 @@ class PythonLearningApp(MDApp):
                 activity.bind(on_activity_result=self.on_activity_result)
             except Exception as e:
                 print(f"[ERROR] Failed to bind: {e}")
+
+        # ===== ПРОГРЕВ ПОДСВЕТКИ СИНТАКСИСА (убираем первый фриз) =====
+        def warmup_pygments(dt):
+            try:
+                from pygments.lexers import PythonLexer
+                from pygments.styles import get_style_by_name
+                # Загружаем стиль по умолчанию в фоне
+                default_style = ThemeManager.get_syntax_style()
+                get_style_by_name(default_style)
+                # Создаём временный лексер (он закеширует RegexLexer)
+                lexer = PythonLexer()
+                # Простейшая проверка, чтобы Pygments "прогрелся"
+                list(lexer.get_tokens("def foo(): pass"))
+                print("[OK] Pygments warmed up successfully")
+            except Exception as e:
+                print(f"[WARN] Pygments warmup failed: {e}")
+
+        # Запускаем прогрев через 0.5 секунды после старта приложения
+        Clock.schedule_once(warmup_pygments, 0.5)
+        # =============================================================
 
         return sm
 

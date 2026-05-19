@@ -6465,6 +6465,9 @@ class PythonLearningApp(MDApp):
         Clock.schedule_once(open_dropdown, 0.05)
 
     def menu_action(self, button, func):
+        # ВИБРАЦИЯ
+        self.vibrate_short()
+        
         if hasattr(self, '_menu_dropdown'):
             self._menu_dropdown.dismiss()
         func(None)

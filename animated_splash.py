@@ -18,7 +18,7 @@ import threading
 import time
 
 # Полное отключение клавиатуры
-Config.set('kivy', 'keyboard_mode', 'systemandmulti')
+#Config.set('kivy', 'keyboard_mode', 'systemandmulti')
 
 # ========== ЦВЕТА ==========
 BG_COLOR = (0.188, 0.204, 0.251, 1)  # Тёмно-синий фон
@@ -80,7 +80,7 @@ class AnimatedSplashScreen(Screen):
         self.loading_complete = False
 
         # Защита от дёрганья клавиатуры
-        Window.bind(on_resize=self._on_window_resize)
+        #Window.bind(on_resize=self._on_window_resize)
 
         # Фон
         with self.canvas.before:
@@ -164,12 +164,6 @@ class AnimatedSplashScreen(Screen):
         # Запуск
         Clock.schedule_once(self._start, 0.1)
     
-    def _on_window_resize(self, window, width, height):
-        """Блокируем изменение размера окна во время splash (убирает дёрганье)"""
-        if not getattr(self, 'loading_complete', False):
-            return True  # отменяем ресайз
-        return False
-    
     def _disable_keyboard(self):
         """Только отключаем фокус — без агрессивного изменения softinput_mode"""
         try:
@@ -242,26 +236,34 @@ class AnimatedSplashScreen(Screen):
     
     def _set_progress(self, value):
         self.progress_bar.value = value
-    
+
     def _finish(self, dt):
         if not self.loading_complete:
             self.loading_complete = True
             self.status_label.text = "Ready!"
-            fade = Animation(opacity=0, duration=0.1)
+            fade = Animation(opacity=0, duration=0.2)
             fade.start(self)
-            Clock.schedule_once(self._go_to_main, 0.15)
-    
+            Clock.schedule_once(self._go_to_main, 0.25)
+
     def _go_to_main(self, dt):
-        """Переход на главный экран"""
-        try:
-            if hasattr(self.main_app, 'code_input') and self.main_app.code_input:
-                self.main_app.code_input.disabled = False
-                Window.softinput_mode = 'below_target'   # стабильный режим
-        except:
-            pass
-        
-        self.manager.transition = SlideTransition(direction='left', duration=0.15)
+        """Безопасный переход на главный экран с корректной передачей фокуса."""
+        # 1. Получаем редактор из главного приложения
+        editor = None
+        if hasattr(self.main_app, 'tab_manager') and self.main_app.tab_manager:
+            editor = self.main_app.tab_manager.get_active_editor()
+
+        if editor and hasattr(editor, 'text_input'):
+            # 2. ВКЛЮЧАЕМ ввод, который был отключен
+            editor.text_input.disabled = False
+            # 3. Устанавливаем стабильный режим софт-клавиатуры
+            Window.softinput_mode = 'below_target'
+            # 4. Даем фокус редактору кода через небольшую задержку
+            Clock.schedule_once(lambda dt: setattr(editor.text_input, 'focus', True), 0.1)
+
+        # 5. Переключаем экран с более плавной анимацией
+        self.manager.transition = SlideTransition(direction='left', duration=0.25)
         self.manager.current = 'main'
-        
+
+        # 6. Оповещаем приложение, что всё готово
         if hasattr(self.main_app, 'on_splash_finished'):
             self.main_app.on_splash_finished()

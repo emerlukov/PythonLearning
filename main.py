@@ -37,6 +37,7 @@ import time
 import re
 import builtins
 from datetime import datetime
+from plyer import vibrator
 
 # ====================== ИМПОРТ СТОРОННИХ БИБЛИОТЕК ======================
 try:
@@ -1162,6 +1163,10 @@ class LanguageSelectMenu:
         Clock.schedule_once(adjust_position, 0.15)
 
     def _on_language_select(self, lang_code):
+        # ВИБРАЦИЯ
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         if self._dropdown:
             try:
                 self._dropdown.dismiss()
@@ -1273,6 +1278,10 @@ class ThemeSelectMenu:
         Clock.schedule_once(adjust_position, 0.15)
 
     def _on_theme_select(self, theme_id):
+        # ВИБРАЦИЯ
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         if self._dropdown:
             try:
                 self._dropdown.dismiss()
@@ -1280,6 +1289,8 @@ class ThemeSelectMenu:
                 pass
         if theme_id != ThemeManager.get_theme_name():
             success = ThemeManager.switch_theme(theme_id)
+            new_style = SyntaxStyleManager.get_default_style_for_theme(theme_id)
+            SyntaxStyleManager.save_current_style(new_style)
             if success:
                 new_theme = ThemeManager.get_theme()
                 Window.clearcolor = new_theme['window_bg']
@@ -1425,6 +1436,10 @@ class EditorSettingsMenu:
         Clock.schedule_once(adjust_position, 0.15)
 
     def _on_item_click(self, handler):
+        # ВИБРАЦИЯ
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         if self._dropdown:
             try:
                 self._dropdown.dismiss()
@@ -1747,6 +1762,27 @@ class SyntaxStyleManager:
         settings_dir = os.path.join(os.getcwd(), 'data')
         return os.path.join(settings_dir, 'python_ide_settings.json')
 
+    @classmethod
+    def get_styles_by_theme(cls, theme_name):
+        """Возвращает список стилей для указанной темы"""
+        dark_styles = ['monokai', 'dracula', 'github-dark', 'one-dark', 'native', 'material', 'xcode-dark',
+                       'stata-dark', 'rainbow_dash']
+        light_styles = ['default', 'xcode', 'friendly', 'github', 'autumn', 'borland', 'trac', 'colorful', 'vs', 'sas',
+                        'arduino']
+
+        if theme_name == 'dark':
+            return [s for s in cls.get_available_styles() if s in dark_styles]
+        else:
+            return [s for s in cls.get_available_styles() if s in light_styles]
+
+    @classmethod
+    def get_default_style_for_theme(cls, theme_name):
+        """Возвращает стиль по умолчанию для темы"""
+        if theme_name == 'dark':
+            return 'monokai'
+        else:
+            return 'arduino'
+
 
 class SyntaxHighlightMenu:
     """Меню выбора стиля подсветки"""
@@ -1763,7 +1799,8 @@ class SyntaxHighlightMenu:
         self._destroy_all_windows()
         theme = ThemeManager.get_theme()  # ← НАПРЯМУЮ
         tr = self._get_translations()
-        styles = SyntaxStyleManager.get_available_styles()
+        current_theme = ThemeManager.get_theme_name()
+        styles = SyntaxStyleManager.get_styles_by_theme(current_theme)
         style_info = SyntaxStyleManager.get_style_display_info()
         current_style = SyntaxStyleManager.get_current_style()
 
@@ -2140,7 +2177,7 @@ class SettingsMenu:
             ('translate', 'select_language', lambda: self._open_language_submenu(parent_button)),
             ('theme-light-dark', 'theme_settings', lambda: self._open_theme_submenu(parent_button)),
             ('palette', 'syntax_highlight', lambda: self._open_syntax_submenu(parent_button)),
-            ('key', 'api_settings', lambda: self._open_api_settings()),
+            #('key', 'api_settings', lambda: self._open_api_settings()),
             ('tune', 'editor_settings', lambda: self._open_editor_submenu(parent_button)),
         ]
 
@@ -3770,6 +3807,11 @@ class FileDialog(BoxLayout):
             self.cancel()
 
     def _on_action(self, instance):
+        # ВИБРАЦИЯ
+        app = App.get_running_app()
+        if app and hasattr(app, 'vibrate_short'):
+            app.vibrate_short()
+
         if self.popup:
             self.popup.dismiss()
         if self.is_save:
@@ -3897,6 +3939,10 @@ class MyActionBar(BoxLayout):
             btn.color = theme['symbol_btn_text']
 
     def handle_action(self, instance):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         try:
             ti = self._get_active_text_input()
             if not ti:
@@ -4280,6 +4326,10 @@ class MySymbolScrollBar(BoxLayout):
             btn.color = theme['symbol_btn_text']
 
     def handle_action(self, instance):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         if instance.text != 'Tab':
             self._saved_sel_start = None
             self._saved_sel_end = None
@@ -4631,6 +4681,11 @@ class SearchOnlyPopup(BoxLayout):
             return False
 
     def dismiss(self, *args):
+        # ВИБРАЦИЯ
+        app = App.get_running_app()
+        if app and hasattr(app, 'vibrate_short'):
+            app.vibrate_short()
+
         if self.popup:
             self.popup.dismiss()
 
@@ -4787,6 +4842,11 @@ class SearchReplacePopup(BoxLayout):
             return False
 
     def dismiss(self, *args):
+        # ВИБРАЦИЯ
+        app = App.get_running_app()
+        if app and hasattr(app, 'vibrate_short'):
+            app.vibrate_short()
+
         if self.popup:
             self.popup.dismiss()
 
@@ -4950,16 +5010,28 @@ class TabManager:
         self._update_tab_bar()
 
     def _on_add_tab(self):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         editor = self.add_tab()
         if self.app:
             self.app._on_tab_changed(editor)
 
     def _on_tab_press(self, index):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         editor = self.switch_to_tab(index)
         if editor and self.app:
             self.app._on_tab_changed(editor)
 
     def _on_tab_close(self, index):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         if self.close_tab(index):
             editor = self.get_active_editor()
             if editor and self.app:
@@ -5693,9 +5765,9 @@ class PythonLearningApp(MDApp):
 
     def _refresh_ui_after_resize(self):
         """Обновляет UI после поворота экрана"""
-    
+
         reset_screen_cache()
-    
+
         # ========== ОБНОВЛЯЕМ ВЕРХНИЕ ПАНЕЛИ (Примеры и Меню) ==========
         if hasattr(self, '_update_top_panels'):
             self._update_top_panels()
@@ -5704,14 +5776,14 @@ class PythonLearningApp(MDApp):
             theme = ThemeManager.get_theme()
             old_top = self.top_section
             new_top = self._create_top_bar(theme)
-    
+
             if old_top and old_top.parent:
                 index = old_top.parent.children.index(old_top)
                 old_top.parent.remove_widget(old_top)
                 old_top.parent.add_widget(new_top, index=index)
-    
+
             self.top_section = new_top
-    
+
         # Обновляем спиннер, если он существует отдельно
         if hasattr(self, 'spinner'):
             try:
@@ -5722,7 +5794,7 @@ class PythonLearningApp(MDApp):
                 self.spinner.color = theme['spinner_text']
             except:
                 pass
-    
+
         # Обновляем кнопку меню
         if hasattr(self, 'menu_button'):
             try:
@@ -5731,7 +5803,7 @@ class PythonLearningApp(MDApp):
                 self.menu_button.color = theme.get('menu_btn_text', theme['text_color'])
             except:
                 pass
-    
+
         # Обновляем кнопку запуска
         if hasattr(self, 'run_btn'):
             category = get_screen_category()
@@ -5747,31 +5819,31 @@ class PythonLearningApp(MDApp):
                 run_btn_size = dp(67)
                 margin_bottom = dp(67)
                 icon_size = dp(23)
-    
+
             self.run_btn.size = (run_btn_size, run_btn_size)
             for child in self.run_btn.children:
                 if hasattr(child, 'font_size'):
                     child.font_size = f"{dp(icon_size)}sp"
-    
+
             # Обновляем позицию кнопки
             if hasattr(self, 'root_layout'):
                 x = self.root_layout.width - run_btn_size - dp(12)
                 y = margin_bottom
                 self.run_btn.pos = (x, y)
-            
+
             # Восстанавливаем иконку на кнопке запуска
             if hasattr(self, 'play_icon') and self.play_icon not in self.run_btn.children:
                 self.run_btn.add_widget(self.play_icon)
             if hasattr(self, 'play_icon'):
                 self.play_icon.icon = 'play'
-    
+
         # Обновляем панель вкладок
         if hasattr(self, 'tab_manager'):
             self.tab_manager.max_visible = get_tab_count()
             self.tab_manager._update_tab_bar()
             theme = ThemeManager.get_theme()
             self.tab_manager.update_tab_bar_theme(theme)
-    
+
         # Обновляем action_bar (панель с кнопками undo/redo и т.д.)
         if hasattr(self, 'action_bar'):
             try:
@@ -5787,7 +5859,7 @@ class PythonLearningApp(MDApp):
                     self.action_bar.spacing = dp(12)
             except:
                 pass
-    
+
         # Обновляем symbol_bar (панель с символами)
         if hasattr(self, 'symbol_bar'):
             try:
@@ -5803,7 +5875,7 @@ class PythonLearningApp(MDApp):
                     self.symbol_bar.spacing = dp(2)
             except:
                 pass
-    
+
         # Обновляем панель номеров строк
         if hasattr(self, 'editor') and self.editor:
             Clock.schedule_once(self.editor._force_line_panel_refresh, 0.2)
@@ -6243,20 +6315,20 @@ class PythonLearningApp(MDApp):
         panel.bind(pos=self._update_panel_bg, size=self._update_panel_bg)
 
         return panel
-    
+
     def _restore_run_button(self):
         """Восстанавливает иконку на кнопке запуска"""
         print(f"[DEBUG] _restore_run_button called, run_btn={hasattr(self, 'run_btn')}")
-        
+
         if not hasattr(self, 'run_btn') or self.run_btn is None:
             print("[DEBUG] run_btn не существует!")
             return
-        
+
         print(f"[DEBUG] run_btn.children = {self.run_btn.children}")
-        
+
         # Очищаем и пересоздаём иконку принудительно
         self.run_btn.clear_widgets()
-        
+
         from kivymd.uix.label import MDIcon
         category = get_screen_category()
         if category == 'tablet':
@@ -6265,13 +6337,13 @@ class PythonLearningApp(MDApp):
             icon_size = dp(28)
         else:
             icon_size = dp(23)
-        
+
         theme = ThemeManager.get_theme()
         if theme.get('name') == 'dark':
             icon_color = theme.get('run_btn_text', (0.18, 0.18, 0.19, 1))
         else:
             icon_color = theme.get('run_btn_text', (0, 0, 0, 1))
-        
+
         play_icon = MDIcon(
             icon='play',
             font_size=f"{icon_size}sp",
@@ -6287,9 +6359,9 @@ class PythonLearningApp(MDApp):
         """Обновляет обе верхние панели (при смене темы, языка или повороте)"""
         if not hasattr(self, 'top_section') or self.top_section is None:
             return
-        
+
         theme = ThemeManager.get_theme()
-        
+
         # Просто обновляем существующие виджеты, без пересоздания (БЕЗОПАСНЫЙ ВАРИАНТ)
         if hasattr(self, 'spinner'):
             try:
@@ -6299,7 +6371,7 @@ class PythonLearningApp(MDApp):
                 self.spinner.color = theme['spinner_text']
             except:
                 pass
-        
+
         if hasattr(self, 'menu_button'):
             try:
                 self.menu_button.background_color = theme.get('menu_btn_bg', theme['widget_bg'])
@@ -6322,6 +6394,10 @@ class PythonLearningApp(MDApp):
             self.spinner.dropdown_selected_bg = theme['spinner_dropdown_selected_bg']
 
     def show_context_menu(self, instance):
+        # ВИБРАЦИЯ
+        if hasattr(self, 'vibrate_short'):
+            self.vibrate_short()
+
         theme = ThemeManager.get_theme()
         if not hasattr(self, '_menu_dropdown') or not self._menu_dropdown:
             self._menu_dropdown = DropDown()
@@ -6371,7 +6447,7 @@ class PythonLearningApp(MDApp):
             ('find-replace', tr['find_replace'], self.show_search_replace_dialog),
             ('history', tr['history'], self.show_history),
             ('code-tags', tr['format'], self.format_code),
-            ('robot', tr['ai_assistant'], self.show_ai_assistant),
+            #('robot', tr['ai_assistant'], self.show_ai_assistant),
             ('cog', tr['settings'], self._open_settings_menu),
         ]
 
@@ -6570,7 +6646,7 @@ class PythonLearningApp(MDApp):
         self._has_unsaved_changes = False
         self._update_title_saved()
         Clock.schedule_once(self._autosave_tabs, 1)
-    
+
         def set_cursor_to_first_line(dt):
             try:
                 if hasattr(self, 'code_input') and self.code_input:
@@ -6578,10 +6654,10 @@ class PythonLearningApp(MDApp):
                     self.code_input.focus = True
             except:
                 pass
-    
+
         Clock.schedule_once(set_cursor_to_first_line, 0.5)
         Clock.schedule_once(set_cursor_to_first_line, 0.7)
-        
+
         # Восстанавливаем кнопку запуска
         self._restore_run_button()
 
@@ -6889,16 +6965,16 @@ class PythonLearningApp(MDApp):
                 if hasattr(self, 'editor') and self.editor:
                     self.editor.original_lines = (content or "").split('\n')
                     self.editor._update_line_panel()
-    
+
             self._current_file = filename
             self._has_unsaved_changes = False
             self._update_title_saved()
-    
+
             self.show_result_popup(self.tr.get('file_loaded', '✓ Файл загружен'))
-            
+
             # Восстанавливаем кнопку запуска
             self._restore_run_button()
-    
+
         except Exception as e:
             log_error(f"_load_file_into_editor error: {e}")
             self.show_result_popup("Ошибка при открытии файла в редакторе")
@@ -6908,22 +6984,22 @@ class PythonLearningApp(MDApp):
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-    
+
             content_resolver = PythonActivity.mActivity.getContentResolver()
             output_stream = content_resolver.openOutputStream(uri)
-    
+
             text_bytes = self.code_input.text.encode('utf-8')
             output_stream.write(text_bytes)
             output_stream.flush()
             output_stream.close()
-    
+
             self._has_unsaved_changes = False
             self._update_title_saved()
             self.show_result_popup(self.tr.get('file_saved', '✓ Файл сохранён'))
-            
+
             # Восстанавливаем кнопку запуска
             self._restore_run_button()
-    
+
         except Exception as e:
             log_error(f"_save_file_to_uri error: {e}")
             self.show_result_popup(f"✕ Ошибка сохранения:\n{str(e)[:150]}")
@@ -7292,6 +7368,9 @@ class PythonLearningApp(MDApp):
         ThemeManager.unregister(self)
 
     def run_code(self, instance):
+
+        self.vibrate_short()
+
         tr = self.tr
         code = self.code_input.text
         if not code.strip():
@@ -7384,6 +7463,9 @@ class PythonLearningApp(MDApp):
         self.show_result_popup(result)
 
     def load_example(self, spinner, text):
+        # ВИБРАЦИЯ
+        self.vibrate_short()
+
         if not text or text == self.tr.get('examples', 'Examples'):
             return
         examples = self._examples_cache if self._examples_cache else self._build_examples()
@@ -7593,8 +7675,7 @@ except ValueError:
 except ZeroDivisionError:
     print("Cannot divide by zero!")''',
 
-                '15. Файлы': '''#
-                Write to file
+                '15. Файлы': '''# Write to file
 with open("test.txt", "w") as f:
     f.write("Hello, World!\\n")
     f.write("This is my file")
@@ -7811,8 +7892,7 @@ except ValueError:
 except ZeroDivisionError:
     print("На ноль делить нельзя!")''',
 
-                '15. Файлы': '''#
-                Записываем в файл
+                '15. Файлы': '''# Записываем в файл
 with open("тест.txt", "w") as ф:
     ф.write("Привет, мир!\\n")
     ф.write("Это мой файл")
@@ -8380,6 +8460,15 @@ def пауза():
                 return True
         return False
 
+    def vibrate_short(self):
+        """Вызывает короткую вибрацию устройства, если это возможно."""
+        try:
+            # Время вибрации в секундах, 0.1 = 100 миллисекунд
+            vibrator.vibrate(0.1)
+        except NotImplementedError:
+            # Тихая обработка ошибки, если функция не поддерживается (например, на ПК)
+            pass
+
 
 if __name__ == '__main__':
     try:
@@ -8392,30 +8481,5 @@ if __name__ == '__main__':
         except:
             pass
         raise
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

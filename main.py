@@ -8362,6 +8362,9 @@ def пауза():
             on_release=lambda x: self._copy_result(result)
         )
 
+        # ВИБРАЦИЯ ДЛЯ КНОПКИ COPY
+        btn_copy.bind(on_press=lambda x: self.vibrate_short())
+
         btn_close = Button(
             text=tr.get('close', 'Close'),
             font_name='SourceBold',
@@ -8373,6 +8376,9 @@ def пауза():
             size_hint_y=None,
             height=dp(33)
         )
+
+        # ВИБРАЦИЯ ДЛЯ КНОПКИ CLOSE
+        btn_close.bind(on_press=lambda x: self.vibrate_short())
 
         btn_layout.add_widget(btn_copy)
         btn_layout.add_widget(btn_close)

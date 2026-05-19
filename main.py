@@ -2439,6 +2439,8 @@ class LineNumberTextInput(BoxLayout):
         self._redo_stack = []
         self._undo_max = 200
         self._undo_lock = False
+        self._redraw_pending = False
+        self._indent_guides_pending = False
         self._create_ui()
         self.apply_theme(ThemeManager.get_theme())
         Window.bind(on_keyboard=self._on_window_keyboard)
@@ -2739,15 +2741,19 @@ class LineNumberTextInput(BoxLayout):
                 app.autocomplete.show_suggestions(current_word)
             except:
                 pass
-        Clock.unschedule(self._delayed_update_panel)
-        Clock.schedule_once(self._delayed_update_panel, 0.05)
-        Clock.schedule_once(self._update_text_width, 0.1)
+
+        # ОПТИМИЗИРОВАННАЯ ЧАСТЬ - только помечаем, что нужно обновление
+        if not self._redraw_pending:
+            self._redraw_pending = True
+            Clock.schedule_once(self._delayed_update_panel, 0.05)
+
+        if not self._indent_guides_pending:
+            self._indent_guides_pending = True
+            Clock.schedule_once(self._draw_indent_guides, 0.15)
+
+        # Убеждаемся, что в конце всегда есть пустые строки
         Clock.unschedule(self._ensure_trailing)
         Clock.schedule_once(self._ensure_trailing, 0)
-        Clock.unschedule(self._draw_indent_guides)
-        Clock.schedule_once(self._draw_indent_guides, 0.3)
-        Clock.unschedule(self._force_line_panel_refresh)
-        Clock.schedule_once(self._force_line_panel_refresh, 0.2)
 
     def _ensure_trailing(self, dt):
         self._ensure_trailing_empty_lines()
@@ -2802,7 +2808,7 @@ class LineNumberTextInput(BoxLayout):
 
     def _delayed_update_panel(self, dt):
         self._update_line_panel()
-        Clock.schedule_once(self._force_line_panel_refresh, 0.1)
+        self._redraw_pending = False
 
     def _update_separator(self, instance=None, value=None):
         if hasattr(self, 'separator_line') and hasattr(self, 'line_panel_scroll'):
@@ -3047,6 +3053,7 @@ class LineNumberTextInput(BoxLayout):
             log_error(f"Error showing keyboard: {e}")
 
     def _draw_indent_guides(self, *args):
+        self._indent_guides_pending = False
         if not hasattr(self, 'text_input') or not self.text_input:
             return
         if not self.original_lines:

@@ -20,6 +20,9 @@ Python Learning App
 - UI масштабируется через kivy.metrics dp/sp!!!
 - Исправлен хрупкий хак с unbind/bind в _ensure_trailing_empty_lines!!!
 - Смена цветов светлой темы!!!
+- Доступ к файлам роботает!!!
+- Подправленны темы и синтаксис!!!
+- Добавлен виброотклик !!!
 """
 
 # ====================== ИМПОРТ СТАНДАРТНЫХ БИБЛИОТЕК ======================
@@ -5187,50 +5190,49 @@ class TabManager:
         menu.auto_width = False
         menu.width = dp(100)
 
+        # ========== ПЕРЕИМЕНОВАТЬ ==========
         btn_rename = Button(
             text=tr.get('rename_tab', 'Переименовать'),
             size_hint_y=None, height=dp(30),
             background_color=theme['widget_bg'],
             background_normal='', background_down='',
-            color=theme['text_color'], font_size=dp(11),
-            on_release=lambda x: self._rename_tab(index, menu)
+            color=theme['text_color'], font_size=dp(11)
         )
         btn_rename.bind(on_release=lambda x: self._rename_tab(index, menu))
         menu.add_widget(btn_rename)
 
+        # ========== ДУБЛИРОВАТЬ ==========
         btn_duplicate = Button(
             text=tr.get('duplicate_tab', 'Дублировать'),
             size_hint_y=None, height=dp(30),
             background_color=theme['widget_bg'],
             background_normal='', background_down='',
-            color=theme['text_color'], font_size=dp(11),
-            on_release=lambda x: self._rename_tab(index, menu)
+            color=theme['text_color'], font_size=dp(11)
         )
-        btn_duplicate.bind(on_release=lambda x: self._duplicate_tab(index, menu))
+        btn_duplicate.bind(on_release=lambda x: self._duplicate_tab(index, menu))  # ← ИСПРАВЛЕНО
         menu.add_widget(btn_duplicate)
 
         if len(self.tabs) > 1:
+            # ========== ЗАКРЫТЬ ДРУГИЕ ==========
             btn_close_others = Button(
                 text=tr.get('close_other_tabs', 'Закрыть другие'),
                 size_hint_y=None, height=dp(30),
                 background_color=theme['widget_bg'],
                 background_normal='', background_down='',
-                color=theme['text_color'], font_size=dp(11),
-                on_release=lambda x: self._rename_tab(index, menu)
+                color=theme['text_color'], font_size=dp(11)
             )
-            btn_close_others.bind(on_release=lambda x: self._close_other_tabs(index, menu))
+            btn_close_others.bind(on_release=lambda x: self._close_other_tabs(index, menu))  # ← ИСПРАВЛЕНО
             menu.add_widget(btn_close_others)
 
-        if len(self.tabs) > 1:
+            # ========== ЗАКРЫТЬ ВСЕ ==========
             btn_close_all = Button(
                 text=tr.get('close_all_tabs', 'Закрыть все'),
                 size_hint_y=None, height=dp(30),
                 background_color=theme.get('tab_context_danger_bg', (0.3, 0.1, 0.1, 1)),
                 background_normal='', background_down='',
-                color=theme['text_color'], font_size=dp(11),
-                on_release=lambda x: self._rename_tab(index, menu)
+                color=theme['text_color'], font_size=dp(11)
             )
-            btn_close_all.bind(on_release=lambda x: self._close_all_tabs(menu))
+            btn_close_all.bind(on_release=lambda x: self._close_all_tabs(menu))  # ← ИСПРАВЛЕНО
             menu.add_widget(btn_close_all)
 
         try:
@@ -6467,7 +6469,7 @@ class PythonLearningApp(MDApp):
     def menu_action(self, button, func):
         # ВИБРАЦИЯ
         self.vibrate_short()
-        
+
         if hasattr(self, '_menu_dropdown'):
             self._menu_dropdown.dismiss()
         func(None)
@@ -8523,7 +8525,7 @@ def пауза():
     def vibrate_short(self):
         """Вызывает короткую вибрацию устройства, если это возможно."""
         try:
-            # Время вибрации в секундах, 0.1 = 100 миллисекунд
+            # Время вибрации в секундах, 0.02 = 100 миллисекунд
             vibrator.vibrate(0.02)
         except NotImplementedError:
             # Тихая обработка ошибки, если функция не поддерживается (например, на ПК)

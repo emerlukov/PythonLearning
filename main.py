@@ -2111,7 +2111,7 @@ class SyntaxHighlightMenu:
     def _destroy_all_windows(self):
         self._close_menu()
         self._close_preview()
-        gc.collect()
+        #gc.collect()
 
     def _get_theme(self):
         try:
@@ -5506,6 +5506,7 @@ class PythonLearningApp(MDApp):
         self._ui_ready = False
         self._pending_operations = []
         self._cleanup_scheduled = False
+        self._code_running = False
 
         # === НОВОЕ: Инициализация пути для файлового менеджера ===
         self.current_path = self.get_external_storage_path()
@@ -6699,6 +6700,32 @@ class PythonLearningApp(MDApp):
             Line(rectangle=(instance.pos[0], instance.pos[1], instance.size[0], instance.size[1]), width=dp(0.5))
 
     def _on_tab_changed(self, new_editor):
+        # Добавляем защиту от None
+        if not new_editor:
+            print("[WARN] _on_tab_changed called with None editor")
+            return
+
+        if not hasattr(self, 'editor_container') or not self.editor_container:
+            print("[WARN] editor_container not ready")
+            return
+
+        self.editor_container.clear_widgets()
+        self.editor = new_editor
+
+        if not hasattr(new_editor, 'text_input') or not new_editor.text_input:
+            print("[WARN] new_editor has no text_input")
+            return
+
+        self.code_input = new_editor.text_input
+        self.editor_container.add_widget(new_editor)
+
+        # Проверяем существование action_bar и symbol_bar
+        if hasattr(self, 'action_bar') and self.action_bar:
+            self.action_bar.text_input = self.code_input
+        if hasattr(self, 'symbol_bar') and self.symbol_bar:
+            self.symbol_bar.text_input = self.code_input
+        if hasattr(self, 'autocomplete') and self.autocomplete:
+            self.autocomplete.code_input = self.code_input
         self.editor_container.clear_widgets()
         self.editor = new_editor
         self.code_input = new_editor.text_input
@@ -7445,24 +7472,39 @@ class PythonLearningApp(MDApp):
         ThemeManager.unregister(self)
 
     def run_code(self, instance):
+        # Защита от повторного запуска
+        if hasattr(self, '_code_running') and self._code_running:
+            self.show_result_popup("Код уже выполняется...")
+            return
 
         self.vibrate_short()
 
         tr = self.tr
+
+        # Проверка наличия редактора
+        if not hasattr(self, 'code_input') or not self.code_input:
+            self.show_result_popup("Ошибка: редактор не инициализирован")
+            return
+
         code = self.code_input.text
         if not code.strip():
             self.show_result_popup(tr.get('enter_code', 'X Enter code'))
             return
+
+        # Устанавливаем флаг, что код запущен
+        self._code_running = True
         instance.disabled = True
 
         def input_handler(prompt=""):
             return self._handle_input(prompt)
 
         def result_callback(result):
+            self._code_running = False  # Сбрасываем флаг
             instance.disabled = False
             self._show_result(result)
 
         if not self.code_executor.run(code, input_handler, result_callback):
+            self._code_running = False  # Сбрасываем флаг при ошибке
             instance.disabled = False
 
     def _handle_input(self, prompt=""):
@@ -7534,6 +7576,11 @@ class PythonLearningApp(MDApp):
         return input_result[0] if input_result[0] is not None else ""
 
     def _show_result(self, result):
+        # Ограничиваем длину результата для производительности
+        MAX_RESULT_LENGTH = 50000
+        if len(result) > MAX_RESULT_LENGTH:
+            result = result[:MAX_RESULT_LENGTH] + "\n\n... (вывод обрезан)"
+
         self.history.append({"time": datetime.now().strftime("%H:%M:%S"), "out": result})
         if len(self.history) > self._max_history:
             self.history = self.history[-self._max_history:]

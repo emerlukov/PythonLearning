@@ -945,6 +945,11 @@ class ThemedSpinner(Spinner):
         self.bind(on_press=self._on_spinner_press)
 
     def _on_spinner_press(self, instance):
+        # ВИБРАЦИЯ
+        app = App.get_running_app()
+        if app and hasattr(app, 'vibrate_short'):
+            app.vibrate_short()
+
         Clock.schedule_once(lambda dt: self._apply_dropdown_theme(), 0.05)
         Clock.schedule_once(lambda dt: self._apply_dropdown_theme(), 0.1)
 
@@ -2223,20 +2228,40 @@ class SettingsMenu:
         handler()
 
     def _open_language_submenu(self, parent_button):
+        # ВИБРАЦИЯ
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         self._language_menu.show(parent_button)
 
     def _open_theme_submenu(self, parent_button):
+        # ВИБРАЦИЯ
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         self._theme_menu.show(parent_button)
 
     def _open_syntax_submenu(self, parent_button):
+        # ВИБРАЦИЯ
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         if not hasattr(self, '_syntax_menu'):
             self._syntax_menu = SyntaxHighlightMenu(self.app)
         self._syntax_menu.show(parent_button)
 
     def _open_editor_submenu(self, parent_button):
+        # ВИБРАЦИЯ
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         self._editor_menu.show(parent_button)
 
     def _open_api_settings(self):
+        # ВИБРАЦИЯ
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         self.app.show_api_key_settings()
 
     def _update_container_bg(self, instance, theme_colors):
@@ -5167,7 +5192,8 @@ class TabManager:
             size_hint_y=None, height=dp(30),
             background_color=theme['widget_bg'],
             background_normal='', background_down='',
-            color=theme['text_color'], font_size=dp(11)
+            color=theme['text_color'], font_size=dp(11),
+            on_release=lambda x: self._rename_tab(index, menu)
         )
         btn_rename.bind(on_release=lambda x: self._rename_tab(index, menu))
         menu.add_widget(btn_rename)
@@ -5177,7 +5203,8 @@ class TabManager:
             size_hint_y=None, height=dp(30),
             background_color=theme['widget_bg'],
             background_normal='', background_down='',
-            color=theme['text_color'], font_size=dp(11)
+            color=theme['text_color'], font_size=dp(11),
+            on_release=lambda x: self._rename_tab(index, menu)
         )
         btn_duplicate.bind(on_release=lambda x: self._duplicate_tab(index, menu))
         menu.add_widget(btn_duplicate)
@@ -5188,7 +5215,8 @@ class TabManager:
                 size_hint_y=None, height=dp(30),
                 background_color=theme['widget_bg'],
                 background_normal='', background_down='',
-                color=theme['text_color'], font_size=dp(11)
+                color=theme['text_color'], font_size=dp(11),
+                on_release=lambda x: self._rename_tab(index, menu)
             )
             btn_close_others.bind(on_release=lambda x: self._close_other_tabs(index, menu))
             menu.add_widget(btn_close_others)
@@ -5199,7 +5227,8 @@ class TabManager:
                 size_hint_y=None, height=dp(30),
                 background_color=theme.get('tab_context_danger_bg', (0.3, 0.1, 0.1, 1)),
                 background_normal='', background_down='',
-                color=theme['text_color'], font_size=dp(11)
+                color=theme['text_color'], font_size=dp(11),
+                on_release=lambda x: self._rename_tab(index, menu)
             )
             btn_close_all.bind(on_release=lambda x: self._close_all_tabs(menu))
             menu.add_widget(btn_close_all)
@@ -5214,11 +5243,19 @@ class TabManager:
                     pass
 
     def _rename_tab(self, index, menu):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         menu.dismiss()
         if self.app:
             self.app._show_rename_tab_dialog(index)
 
     def _duplicate_tab(self, index, menu):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         menu.dismiss()
         if 0 <= index < len(self.tabs):
             tab = self.tabs[index]
@@ -5241,6 +5278,10 @@ class TabManager:
                 self.app._on_tab_changed(editor)
 
     def _close_other_tabs(self, index, menu):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         menu.dismiss()
         if 0 <= index < len(self.tabs):
             tab = self.tabs[index]
@@ -5255,6 +5296,10 @@ class TabManager:
                 self.app._on_tab_changed(tab['editor'])
 
     def _close_all_tabs(self, menu):
+        # ВИБРАЦИЯ
+        if self.app and hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
         menu.dismiss()
         for tab in self.tabs:
             if hasattr(tab['editor'], 'cleanup'):
@@ -8268,6 +8313,9 @@ def пауза():
 
     def show_result_popup(self, result):
         """Показывает результат в всплывающем окне."""
+        # ВИБРАЦИЯ
+        self.vibrate_short()
+
         tr = self.tr
 
         if len(result) > 50000:
@@ -8358,6 +8406,9 @@ def пауза():
         self.show_result_popup(self.tr.get('result_copied', '✓ Copied'))
 
     def dismiss_popup(self, *args):
+        # ВИБРАЦИЯ
+        self.vibrate_short()
+
         if self._popup:
             try:
                 if hasattr(self._popup, 'dismiss'):

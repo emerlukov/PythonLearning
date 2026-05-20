@@ -7093,7 +7093,7 @@ class PythonLearningApp(MDApp):
             self.show_result_popup(f"Ошибка: {str(e)}")
 
     def _read_file_from_uri(self, uri):
-        """Чтение файла по URI через системный файловый менеджер Android"""
+        """Чтение файла по URI"""
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
@@ -7110,41 +7110,36 @@ class PythonLearningApp(MDApp):
                     filename = cursor.getString(name_index) or "unknown.py"
                 cursor.close()
 
-            # === ИСПРАВЛЕНИЕ: чистим имя файла от плохих символов ===
-            filename = filename.strip()
-            # Убираем все управляющие и проблемные символы
-            import re
-            filename = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', filename)
+            # Очистка имени файла
+            filename = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', filename.strip())
 
-            # Показываем индикатор загрузки
-            loading_text = f"Загрузка:\n{filename}"
-            self.show_result_popup(loading_text)
+            # Показываем индикатор загрузки — ТОЛЬКО ОДИН РАЗ
+            self.show_result_popup(f"Загрузка:\n{filename}")
 
-            # Чтение файла
+            # Читаем содержимое
             input_stream = content_resolver.openInputStream(uri)
             byte_array = bytearray()
             buffer = bytearray(8192)
-
             while True:
                 length = input_stream.read(buffer)
                 if length == -1:
                     break
                 byte_array.extend(buffer[:length])
-
-            text = byte_array.decode('utf-8', errors='replace')
             input_stream.close()
 
-            # Загружаем в редактор
+            text = byte_array.decode('utf-8', errors='replace')
+
+            # Передаём дальше
             Clock.schedule_once(lambda dt: self._load_file_into_editor(filename, text, uri), 0.1)
 
         except Exception as e:
             log_error(f"_read_file_from_uri error: {e}")
-            Clock.schedule_once(lambda dt:
-                                self.show_result_popup(f"! Не удалось прочитать файл"), 0.1)
+            Clock.schedule_once(lambda dt: self.show_result_popup(f"❌ Не удалось прочитать файл"), 0.1)
 
     def _load_file_into_editor(self, filename, content, uri=None):
-        """Загрузка содержимого файла в редактор"""
+        """Загрузка файла в редактор — финальный шаг"""
         try:
+            # Загружаем файл
             if hasattr(self, 'tab_manager') and self.tab_manager:
                 editor = self.tab_manager.add_tab(title=filename, text=content or "")
                 self._on_tab_changed(editor)
@@ -7154,6 +7149,7 @@ class PythonLearningApp(MDApp):
                     self.editor.original_lines = (content or "").split('\n')
                     self.editor._update_line_panel()
 
+            # Обновляем состояние
             self._current_file = filename
             if uri:
                 if not hasattr(self, '_saved_uris'):
@@ -7163,16 +7159,15 @@ class PythonLearningApp(MDApp):
             self._has_unsaved_changes = False
             self._update_title_saved()
 
-            # === ИСПРАВЛЕНИЕ: только один финальный попап ===
+            # === ТОЛЬКО ОДИН ПОПАП УСПЕХА ===
             success_msg = f"✓ {self.tr.get('file_loaded', 'File loaded')}\n{filename}"
-
             Clock.schedule_once(lambda dt: self.show_result_popup(success_msg), 0.3)
 
             self._restore_run_button()
 
         except Exception as e:
             log_error(f"_load_file_into_editor error: {e}")
-            Clock.schedule_once(lambda dt: self.show_result_popup(" Ошибка открытия файла"), 0.1)
+            Clock.schedule_once(lambda dt: self.show_result_popup("❌ Ошибка открытия файла"), 0.1)
 
     def _save_file_to_uri(self, uri):
         """Сохранение файла"""

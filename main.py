@@ -7329,9 +7329,9 @@ class PythonLearningApp(MDApp):
         self._file_operation_cancel = False
         self._current_file_operation = "load"
 
-        # Показываем индикатор (без эмодзи)
+        # Показываем индикатор
         filename = os.path.basename(file_path)
-        self.show_result_popup(f"[i] Loading: {filename}...")
+        self.show_result_popup(f"Loading: {filename}...")
 
         def load_in_background():
             try:
@@ -7339,37 +7339,36 @@ class PythonLearningApp(MDApp):
 
                 if file_size > 1_000_000:  # > 1MB
                     Clock.schedule_once(lambda dt: self._show_loading_progress(
-                        f"[~] Loading large file ({file_size // 1024} KB)...\nThis may take a few seconds",
+                        f"Loading large file ({file_size // 1024} KB)...\nThis may take a few seconds",
                         file_size
                     ))
 
-                # Проверяем, не отменена ли операция
                 if self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        "[i] Loading cancelled"))
+                        "Loading cancelled"))
                     return
 
                 content = self._read_file_content(file_path)
                 if content is None:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        f"[-] {tr.get('encoding_error', 'Cannot determine encoding')}"))
+                        f"{tr.get('encoding_error', 'Cannot determine encoding')}"))
                     return
 
-                # Проверяем ещё раз перед загрузкой
                 if self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        "[i] Loading cancelled"))
+                        "Loading cancelled"))
                     return
 
-                # Загружаем в главном потоке
                 Clock.schedule_once(lambda dt: self._apply_loaded_content(content, file_path))
 
+                # Используем ✓ который работает
                 Clock.schedule_once(lambda dt: self.show_result_popup(
-                    f"[+] {tr.get('file_loaded', 'Loaded')}: {filename}"))
+                    f"✓ {tr.get('file_loaded', 'Loaded')}: {filename}"))
 
             except Exception as e:
                 if not self._file_operation_cancel:
-                    error_msg = f"[-] {tr.get('error_load', 'Error')}: {str(e)[:100]}"
+                    # Используем ✕ который работает
+                    error_msg = f"✕ {tr.get('error_load', 'Error')}: {str(e)[:100]}"
                     Clock.schedule_once(lambda dt: self.show_result_popup(error_msg))
             finally:
                 self._current_file_operation = None

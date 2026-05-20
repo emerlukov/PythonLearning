@@ -7018,45 +7018,143 @@ class PythonLearningApp(MDApp):
             self._show_legacy_file_dialog(is_save=False)
 
     def show_save_dialog(self, instance=None):
-        """Открывает диалог сохранения файла"""
+        """Открывает диалог ввода имени файла перед сохранением"""
+        if platform != 'android':
+            self.show_result_popup("Эта функция доступна только на Android")
+            return
 
-        # Для Android используем SAF
-        if platform == 'android':
-            if not JNIUS_AVAILABLE:
-                self.show_result_popup("JNIUS не доступен")
-                return
+        if not JNIUS_AVAILABLE:
+            self.show_result_popup("JNIUS не доступен")
+            return
 
-            try:
-                from jnius import autoclass, cast
+        self._show_filename_input_dialog()
 
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                Intent = autoclass('android.content.Intent')
+    def _show_filename_input_dialog(self):
+        """Показывает диалог ввода имени файла перед сохранением"""
+        theme = ThemeManager.get_theme()
+        tr = self.tr
 
-                intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
-                intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("*/*")
+        content = BoxLayout(orientation='vertical', padding=dp(10), spacing=dp(8))
 
-                suggested_name = "script.py"
-                if self._current_file and isinstance(self._current_file, str):
-                    filename = os.path.basename(self._current_file)
-                    if filename:
-                        if '.' in filename and not filename.endswith('.'):
-                            suggested_name = filename
-                        else:
-                            suggested_name = filename + '.py'
+        # Предлагаемое имя файла
+        suggested_name = "script.py"
+        if self._current_file and isinstance(self._current_file, str):
+            filename = os.path.basename(self._current_file)
+            if filename:
+                suggested_name = filename
 
-                intent.putExtra(Intent.EXTRA_TITLE, suggested_name)
+        # Поле ввода
+        filename_input = TextInput(
+            text=suggested_name,
+            multiline=False,
+            font_size=dp(14),
+            font_name='SourceBold',
+            background_color=theme['input_bg'],
+            foreground_color=theme['input_text'],
+            cursor_color=theme['input_cursor'],
+            hint_text="имя_файла.py",
+            size_hint_y=None,
+            height=dp(40),
+            padding=(dp(8), dp(8))
+        )
+        content.add_widget(filename_input)
 
-                current_activity = cast('android.app.Activity', PythonActivity.mActivity)
-                current_activity.startActivityForResult(intent, 1002)
+        # Информационная метка
+        info_label = Label(
+            text="Расширение .py добавится автоматически, если не указано другое",
+            color=theme['stats_text'],
+            font_size=dp(9),
+            font_name='SourceBold',
+            size_hint_y=None,
+            height=dp(20)
+        )
+        content.add_widget(info_label)
 
-            except Exception as e:
-                log_error(f"Save dialog error: {e}")
-                self.show_result_popup(f"Ошибка открытия диалога сохранения:\n{str(e)}")
+        # Кнопки
+        btn_layout = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
 
-        # Для ПК используем классический диалог
-        else:
-            self._show_legacy_file_dialog(is_save=True)
+        popup = Popup(
+            title="Сохранить файл",
+            title_color=theme['popup_title'],
+            background='',
+            background_color=theme.get('popup_bg', (1, 1, 1, 1)),
+            content=content,
+            size_hint=(0.85, 0.40),
+            auto_dismiss=False
+        )
+
+        def on_save(btn):
+            name = filename_input.text.strip()
+            if not name:
+                name = "script"
+
+            # Убираем недопустимые символы
+            invalid_chars = '<>:"/\\|?*'
+            for char in invalid_chars:
+                name = name.replace(char, '_')
+
+            # ⭐ ДОБАВЛЯЕМ .py ТОЛЬКО ЕСЛИ НЕТ РАСШИРЕНИЯ
+            if '.' not in name:
+                name += '.py'
+
+            popup.dismiss()
+            self._start_saf_save(name)
+
+        def on_cancel(btn):
+            popup.dismiss()
+
+        # Стилизация кнопок
+        btn_save = Button(
+            text=tr.get('save', 'Сохранить'),
+            font_name='SourceBold',
+            background_color=(0.2, 0.5, 0.2, 1),
+            background_normal='',
+            background_down='',
+            color=(1, 1, 1, 1),
+            font_size=dp(12),
+            on_release=on_save
+        )
+
+        btn_cancel = Button(
+            text=tr.get('cancel', 'Отмена'),
+            font_name='SourceBold',
+            background_color=theme['widget_bg'],
+            background_normal='',
+            background_down='',
+            color=theme['text_color'],
+            font_size=dp(12),
+            on_release=on_cancel
+        )
+
+        btn_layout.add_widget(btn_cancel)
+        btn_layout.add_widget(btn_save)
+        content.add_widget(btn_layout)
+
+        # Фокус на поле ввода
+        Clock.schedule_once(lambda dt: setattr(filename_input, 'focus', True), 0.3)
+
+        popup.open()
+        self._popup = popup
+
+    def _start_saf_save(self, filename):
+        """Запускает SAF диалог с правильным именем файла"""
+        try:
+            from jnius import autoclass, cast
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Intent = autoclass('android.content.Intent')
+
+            intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.setType("*/*")
+            intent.putExtra(Intent.EXTRA_TITLE, filename)
+
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+            current_activity.startActivityForResult(intent, 1002)
+
+        except Exception as e:
+            log_error(f"Start SAF save error: {e}")
+            self.show_result_popup(f"Ошибка: {str(e)}")
 
     def on_activity_result(self, request_code, result_code, intent):
         """Обработка результатов системных диалогов"""
@@ -7144,13 +7242,15 @@ class PythonLearningApp(MDApp):
             self.show_result_popup(f"[-] Error opening file: {str(e)[:100]}")
 
     def _save_file_to_uri(self, uri):
-        """Сохранение файла с автоматическим добавлением .py если нет расширения"""
+        """Сохранение файла (расширение уже проверено в диалоге)"""
         if platform != 'android':
-            self.show_result_popup("Эта функция доступна только на Android")
+            return
+
+        if not JNIUS_AVAILABLE:
             return
 
         try:
-            from jnius import autoclass, cast
+            from jnius import autoclass
 
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
@@ -7166,22 +7266,7 @@ class PythonLearningApp(MDApp):
                     filename = cursor.getString(name_index)
                 cursor.close()
 
-            # Проверка: есть ли расширение?
-            if '.' not in filename:
-                # Расширения нет - создаём новый URI с .py
-                new_filename = filename + '.py'
-
-                Intent = autoclass('android.content.Intent')
-                new_intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
-                new_intent.addCategory(Intent.CATEGORY_OPENABLE)
-                new_intent.setType("*/*")
-                new_intent.putExtra(Intent.EXTRA_TITLE, new_filename)
-
-                current_activity = cast('android.app.Activity', PythonActivity.mActivity)
-                current_activity.startActivityForResult(new_intent, 1002)
-                return
-
-            # Расширение есть - сохраняем
+            # Сохраняем содержимое
             output_stream = content_resolver.openOutputStream(uri)
             text_bytes = self.code_input.text.encode('utf-8')
             output_stream.write(text_bytes)

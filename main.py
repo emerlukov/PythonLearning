@@ -2160,7 +2160,7 @@ class SyntaxHighlightMenu:
     def _destroy_all_windows(self):
         self._close_menu()
         self._close_preview()
-        #gc.collect()
+        # gc.collect()
 
     def _get_theme(self):
         try:
@@ -2234,7 +2234,7 @@ class SettingsMenu:
             ('translate', 'select_language', lambda: self._open_language_submenu(parent_button)),
             ('theme-light-dark', 'theme_settings', lambda: self._open_theme_submenu(parent_button)),
             ('palette', 'syntax_highlight', lambda: self._open_syntax_submenu(parent_button)),
-            #('key', 'api_settings', lambda: self._open_api_settings()),
+            # ('key', 'api_settings', lambda: self._open_api_settings()),
             ('tune', 'editor_settings', lambda: self._open_editor_submenu(parent_button)),
         ]
 
@@ -6569,14 +6569,13 @@ class PythonLearningApp(MDApp):
 
         # ========== СПИСОК ПУНКТОВ МЕНЮ ==========
         menu_items = [
-            ('file-plus', tr['new'], self.new_file),
             ('folder-open', tr['load'], self.show_load_dialog),
             ('content-save', tr['save'], self.show_save_dialog),
             ('magnify', tr['find'], self.show_search_only_dialog),
             ('find-replace', tr['find_replace'], self.show_search_replace_dialog),
             ('history', tr['history'], self.show_history),
             ('code-tags', tr['format'], self.format_code),
-            #('robot', tr['ai_assistant'], self.show_ai_assistant),
+            # ('robot', tr['ai_assistant'], self.show_ai_assistant),
             ('cog', tr['settings'], self._open_settings_menu),
         ]
 
@@ -6884,33 +6883,6 @@ class PythonLearningApp(MDApp):
         else:
             self.title = self._original_title
 
-    def new_file(self, instance=None):
-        if self._has_unsaved_changes and self.code_input.text.strip():
-            self._pending_new_file = True
-            self._show_new_file_confirmation()
-            return
-        self._do_new_file()
-
-    def _do_new_file(self):
-        self.code_input.text = ''
-        self._current_file = None
-        self._has_unsaved_changes = False
-        self._update_title_saved()
-        if hasattr(self, 'editor') and self.editor:
-            self.editor.original_lines = ['']
-            self.editor._update_line_panel()
-
-        def set_cursor(dt):
-            try:
-                self.code_input.cursor = (0, 0)
-                self.code_input.focus = True
-            except:
-                pass
-
-        Clock.schedule_once(set_cursor, 0.5)
-        Clock.schedule_once(set_cursor, 0.7)
-        self.show_result_popup(self.tr.get('new_file_created', '✓ New file created'))
-
     def save_file(self, path, filename):
         tr = self.tr
         if not filename or not filename.strip():
@@ -7055,13 +7027,13 @@ class PythonLearningApp(MDApp):
                 log_error(f"Error opening file picker: {e}")
                 self.show_result_popup(f"Ошибка открытия диалога:\n{str(e)}")
         else:
-            #self._show_legacy_file_dialog(is_save=False)
+            # self._show_legacy_file_dialog(is_save=False)
 
             # Показываем сообщение, что SAF недоступен на ПК
             self.show_result_popup("SAF доступен только на Android\nДля ПК используйте классический диалог")
 
     def show_save_dialog(self, instance=None):
-        """Открывает системный диалог сохранения файла с выбором расширения"""
+        """Открывает системный диалог сохранения файла с автоматическим добавлением .py"""
         if platform == 'android':
             try:
                 from jnius import autoclass, cast
@@ -7072,49 +7044,45 @@ class PythonLearningApp(MDApp):
 
                 intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.setType("text/plain")
 
-                # Устанавливаем MIME тип для текстовых файлов (более широкий)
-                intent.setType("text/*")
-
-                # Предлагаемое имя файла с расширением .py по умолчанию
+                # Предлагаемое имя файла
                 suggested_name = "script.py"
                 if self._current_file and isinstance(self._current_file, str):
-                    # Если файл уже был открыт/сохранён, предлагаем его имя
                     filename = os.path.basename(self._current_file)
-                    if filename and '.' in filename:
-                        suggested_name = filename
+                    if filename:
+                        # ⭐ ПРОВЕРКА: есть ли расширение у текущего файла?
+                        if '.' in filename and not filename.endswith('.'):
+                            # Расширение есть - оставляем как есть
+                            suggested_name = filename
+                        else:
+                            # Расширения нет - добавляем .py
+                            suggested_name = filename + '.py'
 
                 intent.putExtra(Intent.EXTRA_TITLE, suggested_name)
 
-                # Разрешаем выбирать разные типы файлов с разными расширениями
+                # Разрешаем только текстовые файлы (любые расширения)
                 intent.putExtra(Intent.EXTRA_MIME_TYPES, [
-                    "text/plain",  # .txt
-                    "text/x-python",  # .py
-                    "application/x-python-code",  # .py
-                    "application/json",  # .json
-                    "text/markdown",  # .md
-                    "text/html",  # .html, .htm
-                    "text/css",  # .css
-                    "text/javascript",  # .js
-                    "application/javascript",  # .js
-                    "text/xml",  # .xml
-                    "text/yaml",  # .yaml, .yml
-                    "text/csv",  # .csv
-                    "text/x-log",  # .log
-                    "text/x-ini",  # .ini, .cfg
-                    "text/x-toml",  # .toml
+                    "text/plain",
+                    "text/x-python",
+                    "application/json",
+                    "text/markdown",
+                    "text/html",
+                    "text/css",
+                    "text/javascript",
+                    "application/xml",
+                    "text/yaml",
+                    "text/csv",
                 ])
 
                 current_activity = cast('android.app.Activity', PythonActivity.mActivity)
-                current_activity.startActivityForResult(intent, 1002)  # SAVE
+                current_activity.startActivityForResult(intent, 1002)
 
             except Exception as e:
                 log_error(f"Save dialog error: {e}")
                 self.show_result_popup(f"Ошибка открытия диалога сохранения:\n{str(e)}")
         else:
-            #self._show_legacy_file_dialog(is_save=True)
-
-            self.show_result_popup("SAF доступен только на Android\nДля ПК используйте классический диалог")
+            self.show_result_popup("SAF доступен только на Android")
 
     def on_activity_result(self, request_code, result_code, intent):
         """Обработка результатов системных диалогов"""
@@ -7141,9 +7109,9 @@ class PythonLearningApp(MDApp):
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-    
+
             content_resolver = PythonActivity.mActivity.getContentResolver()
-    
+
             # Получаем имя файла
             cursor = content_resolver.query(uri, None, None, None, None)
             filename = "unknown.py"
@@ -7153,7 +7121,7 @@ class PythonLearningApp(MDApp):
                 if name_index != -1:
                     filename = cursor.getString(name_index) or "unknown.py"
                 cursor.close()
-    
+
             # Читаем содержимое
             input_stream = content_resolver.openInputStream(uri)
             byte_array = bytearray()
@@ -7163,12 +7131,12 @@ class PythonLearningApp(MDApp):
                 if length == -1:
                     break
                 byte_array.extend(buffer[:length])
-    
+
             text = byte_array.decode('utf-8', errors='replace')
-    
+
             # Загружаем в редактор (главный поток) - без промежуточных сообщений
             Clock.schedule_once(lambda dt: self._load_file_into_editor(filename, text), 0)
-    
+
         except Exception as e:
             log_error(f"_read_file_from_uri error: {e}")
             # Только сообщение об ошибке
@@ -7185,31 +7153,61 @@ class PythonLearningApp(MDApp):
                 if hasattr(self, 'editor') and self.editor:
                     self.editor.original_lines = (content or "").split('\n')
                     self.editor._update_line_panel()
-    
+
             self._current_file = filename
             self._has_unsaved_changes = False
             self._update_title_saved()
-    
+
             # БЕЗ СООБЩЕНИЙ - просто загружаем файл
             # self.show_result_popup(...) - убрали
-    
+
             # Восстанавливаем кнопку запуска
             self._restore_run_button()
-    
+
         except Exception as e:
             log_error(f"_load_file_into_editor error: {e}")
             # Только ошибку показываем
             self.show_result_popup(f"[-] Error opening file: {str(e)[:100]}")
 
     def _save_file_to_uri(self, uri):
-        """Сохранение файла"""
+        """Сохранение файла с автоматическим добавлением .py если нет расширения"""
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
+            # Получаем имя файла из URI
             content_resolver = PythonActivity.mActivity.getContentResolver()
-            output_stream = content_resolver.openOutputStream(uri)
+            cursor = content_resolver.query(uri, None, None, None, None)
+            filename = "script.py"
 
+            if cursor and cursor.moveToFirst():
+                OpenableColumns = autoclass('android.provider.OpenableColumns')
+                name_index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if name_index != -1:
+                    filename = cursor.getString(name_index)
+                cursor.close()
+
+            # ⭐ ПРОВЕРКА: есть ли расширение?
+            if '.' not in filename:
+                # Расширения нет - добавляем .py
+                new_filename = filename + '.py'
+
+                # Создаём новый Intent с правильным именем
+                Intent = autoclass('android.content.Intent')
+                new_intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                new_intent.addCategory(Intent.CATEGORY_OPENABLE)
+                new_intent.setType("text/plain")
+                new_intent.putExtra(Intent.EXTRA_TITLE, new_filename)
+
+                # Запускаем новый диалог
+                current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+                current_activity.startActivityForResult(new_intent, 1002)
+
+                # Сохраняем старый URI на случай отмены (не используем его)
+                return
+
+            # Расширение есть (любое: .py, .txt, .json, .md и т.д.) - сохраняем как есть
+            output_stream = content_resolver.openOutputStream(uri)
             text_bytes = self.code_input.text.encode('utf-8')
             output_stream.write(text_bytes)
             output_stream.flush()
@@ -7217,7 +7215,10 @@ class PythonLearningApp(MDApp):
 
             self._has_unsaved_changes = False
             self._update_title_saved()
-            self.show_result_popup(self.tr.get('file_saved', '✓ Файл сохранён'))
+
+            # Показываем короткое имя файла
+            short_name = filename if len(filename) < 30 else filename[:27] + "..."
+            self.show_result_popup(f"✓ {short_name}")
 
             # Восстанавливаем кнопку запуска
             self._restore_run_button()
@@ -7546,33 +7547,6 @@ class PythonLearningApp(MDApp):
         popup.dismiss()
         self._force_exit()
 
-    def _show_new_file_confirmation(self):
-        tr = self.tr
-        theme = ThemeManager.get_theme()
-        content = BoxLayout(orientation='vertical', padding=dp(7), spacing=dp(5))
-        content.add_widget(Label(text=tr.get('new_file_confirm', 'Create without saving?'), color=theme['text_color'],
-                                 font_size=dp(11), font_name='SourceBold', halign='center', size_hint_y=None,
-                                 height=dp(27)))
-        btn_layout = BoxLayout(size_hint_y=None, height=dp(23), spacing=dp(4))
-        popup = Popup(title=tr.get('confirm_title', 'Confirm'), title_color=theme['popup_title'], background='',
-                      background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content, size_hint=(0.8, 0.3),
-                      auto_dismiss=False)
-        btn_yes = Button(text=tr.get('yes', 'Yes'), font_name='SourceBold', background_color=(0.2, 0.5, 0.2, 1),
-                         background_normal='', background_down='', color=theme['text_color'], font_size=dp(10),
-                         on_release=lambda x: self._on_new_file_confirm(popup))
-        btn_no = Button(text=tr.get('no', 'No'), font_name='SourceBold', background_color=theme['widget_bg'],
-                        background_normal='', background_down='', color=theme['text_color'], font_size=dp(10),
-                        on_release=lambda x: popup.dismiss())
-        btn_layout.add_widget(btn_yes)
-        btn_layout.add_widget(btn_no)
-        content.add_widget(btn_layout)
-        popup.open()
-
-    def _on_new_file_confirm(self, popup):
-        popup.dismiss()
-        self._do_new_file()
-        self._pending_new_file = False
-
     def _confirm_overwrite(self, full_path):
         tr = self.tr
         theme = ThemeManager.get_theme()
@@ -7583,7 +7557,6 @@ class PythonLearningApp(MDApp):
             text=f"{tr.get('file_exists', 'File')} '{filename}' {tr.get('already_exists', 'exists')}.\n{tr.get('overwrite_prompt', 'Overwrite?')}",
             color=theme['text_color'], font_size=dp(11), font_name='SourceBold',
             halign='center', size_hint_y=None, height=dp(27)))
-
 
         btn_layout = BoxLayout(size_hint_y=None, height=dp(23), spacing=dp(4))
 
@@ -7988,7 +7961,8 @@ except ValueError:
 except ZeroDivisionError:
     print("Cannot divide by zero!")''',
 
-                '15. Файлы': '''# Write to file
+                '15. Файлы': '''#
+                Write to file
 with open("test.txt", "w") as f:
     f.write("Hello, World!\\n")
     f.write("This is my file")
@@ -8205,7 +8179,8 @@ except ValueError:
 except ZeroDivisionError:
     print("На ноль делить нельзя!")''',
 
-                '15. Файлы': '''# Записываем в файл
+                '15. Файлы': '''#
+                Записываем в файл
 with open("тест.txt", "w") as ф:
     ф.write("Привет, мир!\\n")
     ф.write("Это мой файл")
@@ -8779,7 +8754,7 @@ def пауза():
         ctrl_pressed = modifier and 'ctrl' in modifier
         if ctrl_pressed:
             hotkeys = {115: self.show_save_dialog, 111: self.show_load_dialog, 102: self.show_search_only_dialog,
-                       114: self.run_code, 104: self.show_history, 110: self.new_file}
+                       114: self.run_code, 104: self.show_history}
             if key in hotkeys:
                 Clock.schedule_once(lambda dt, f=hotkeys[key]: f(None), 0)
                 return True

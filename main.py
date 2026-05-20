@@ -7144,7 +7144,7 @@ class PythonLearningApp(MDApp):
 
             content_resolver = PythonActivity.mActivity.getContentResolver()
 
-            # Имя файла
+            # Получаем имя файла
             cursor = content_resolver.query(uri, None, None, None, None)
             filename = "unknown.py"
             if cursor and cursor.moveToFirst():
@@ -7154,24 +7154,41 @@ class PythonLearningApp(MDApp):
                     filename = cursor.getString(name_index) or "unknown.py"
                 cursor.close()
 
-            # Чтение содержимого
-            input_stream = content_resolver.openInputStream(uri)
-            byte_array = bytearray()
-            buffer = bytearray(8192)
-            while True:
-                length = input_stream.read(buffer)
-                if length == -1:
-                    break
-                byte_array.extend(buffer[:length])
+            # Сообщение о начале загрузки (ОБЯЗАТЕЛЬНО через Clock)
+            Clock.schedule_once(lambda dt: self.show_result_popup(f"Loading: {filename}..."), 0)
 
-            text = byte_array.decode('utf-8', errors='replace')
+            # Читаем содержимое в фоновом потоке
+            def read_content():
+                try:
+                    input_stream = content_resolver.openInputStream(uri)
+                    byte_array = bytearray()
+                    buffer = bytearray(8192)
+                    while True:
+                        length = input_stream.read(buffer)
+                        if length == -1:
+                            break
+                        byte_array.extend(buffer[:length])
 
-            # Важно: всё UI через main thread
-            Clock.schedule_once(lambda dt: self._load_file_into_editor(filename, text), 0)
+                    text = byte_array.decode('utf-8', errors='replace')
+
+                    # Проверяем размер файла (для большого файла)
+                    if len(byte_array) > 1_000_000:
+                        Clock.schedule_once(lambda dt: self.show_result_popup(
+                            f"Loading large file ({len(byte_array) // 1024} KB)...\nThis may take a few seconds"), 0)
+
+                    # Загружаем в редактор
+                    Clock.schedule_once(lambda dt: self._load_file_into_editor(filename, text), 0)
+
+                except Exception as e:
+                    log_error(f"read_content error: {e}")
+                    Clock.schedule_once(lambda dt: self.show_result_popup(f"[-] Cannot read file:\n{str(e)[:200]}"), 0)
+
+            # Запускаем чтение в отдельном потоке
+            threading.Thread(target=read_content, daemon=True).start()
 
         except Exception as e:
             log_error(f"_read_file_from_uri error: {e}")
-            self.show_result_popup(f"✕ Не удалось прочитать файл:\n{str(e)[:200]}")
+            Clock.schedule_once(lambda dt: self.show_result_popup(f"[-] Cannot open file:\n{str(e)[:200]}"), 0)
 
     def _load_file_into_editor(self, filename, content):
         """Безопасная загрузка файла в редактор (выполняется в главном потоке)"""
@@ -7189,14 +7206,15 @@ class PythonLearningApp(MDApp):
             self._has_unsaved_changes = False
             self._update_title_saved()
 
-            self.show_result_popup(self.tr.get('file_loaded', '✓ Файл загружен'))
+            # Финальное сообщение об успехе
+            self.show_result_popup(f"[+] Loaded: {filename}")
 
             # Восстанавливаем кнопку запуска
             self._restore_run_button()
 
         except Exception as e:
             log_error(f"_load_file_into_editor error: {e}")
-            self.show_result_popup("Ошибка при открытии файла в редакторе")
+            self.show_result_popup(f"[-] Error opening file in editor")
 
     def _save_file_to_uri(self, uri):
         """Сохранение файла"""
@@ -7370,30 +7388,9 @@ class PythonLearningApp(MDApp):
 
         filename = os.path.basename(file_path)
 
-        # 1. ПЕРВОЕ СООБЩЕНИЕ - показываем сразу
-        self.show_result_popup(f"{tr.get('loading_file', 'Loading')}: {filename}...")
-
         def load_in_background():
             try:
-                file_size = os.path.getsize(file_path)
-
-                # 2. ЕСЛИ ФАЙЛ БОЛЬШОЙ - показываем сообщение через Clock
-                if file_size > 1_000_000:
-                    Clock.schedule_once(lambda dt: self.show_result_popup(
-                        f"{tr.get('loading_large_file', 'Loading large file')} ({file_size // 1024} KB)...\n{tr.get('this_may_take_seconds', 'This may take a few seconds')}"
-                    ), 0.1)  # небольшая задержка 0.1 сек
-
-                # Небольшая пауза для UI в фоновом потоке (не блокирует главный)
-                import time
-                time.sleep(0.05)
-
-                # Проверка отмены
-                if self._file_operation_cancel:
-                    Clock.schedule_once(lambda dt: self.show_result_popup(
-                        tr.get('loading_cancelled', 'Loading cancelled')), 0)
-                    return
-
-                # 3. ЧТЕНИЕ ФАЙЛА (долгая операция в фоне)
+                # Чтение файла (долгая операция в фоне)
                 content = self._read_file_content(file_path)
 
                 if content is None:
@@ -7406,12 +7403,12 @@ class PythonLearningApp(MDApp):
                         tr.get('loading_cancelled', 'Loading cancelled')), 0)
                     return
 
-                # 4. ЗАГРУЗКА В РЕДАКТОР (в главном потоке)
+                # Загрузка в редактор (в главном потоке)
                 Clock.schedule_once(lambda dt: self._apply_loaded_content(content, file_path), 0)
 
-                # 5. СООБЩЕНИЕ ОБ УСПЕХЕ (с задержкой, чтобы предыдущее сообщение успело показаться)
+                # ТОЛЬКО ОДНО ФИНАЛЬНОЕ СООБЩЕНИЕ
                 Clock.schedule_once(lambda dt: self.show_result_popup(
-                    f"[+] {tr.get('file_success_loaded', 'Loaded')}: {filename}"), 0.2)
+                    f"[+] {tr.get('file_success_loaded', 'Loaded')}: {filename}"), 0.1)
 
             except Exception as e:
                 if not self._file_operation_cancel:

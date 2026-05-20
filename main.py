@@ -7376,11 +7376,19 @@ class PythonLearningApp(MDApp):
             try:
                 file_size = os.path.getsize(file_path)
 
+                # ДОБАВЛЯЕМ ОТЛАДОЧНЫЙ ВЫВОД
+                print(f"[DEBUG] File size: {file_size} bytes ({file_size // 1024} KB)")
+
+                # Проверяем размер файла
                 if file_size > 1_000_000:  # > 1MB
-                    Clock.schedule_once(lambda dt: self._show_loading_progress(
-                        f"{tr.get('loading_large_file', 'Loading large file')} ({file_size // 1024} KB)...\n{tr.get('this_may_take_seconds', 'This may take a few seconds')}",
-                        file_size
-                    ))
+                    # Формируем сообщение
+                    size_kb = file_size // 1024
+                    msg = f"{tr.get('loading_large_file', 'Loading large file')} ({size_kb} KB)...\n{tr.get('this_may_take_seconds', 'This may take a few seconds')}"
+
+                    print(f"[DEBUG] Large file detected, showing message: {msg}")
+
+                    # Показываем сообщение через Clock (обязательно)
+                    Clock.schedule_once(lambda dt: self.show_result_popup(msg), 0.1)
 
                 # Проверяем, не отменена ли операция
                 if self._file_operation_cancel:

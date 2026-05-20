@@ -7381,10 +7381,11 @@ class PythonLearningApp(MDApp):
                 if file_size > 1_000_000:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
                         f"{tr.get('loading_large_file', 'Loading large file')} ({file_size // 1024} KB)...\n{tr.get('this_may_take_seconds', 'This may take a few seconds')}"
-                    ), 0)
+                    ), 0.1)  # небольшая задержка 0.1 сек
 
-                # Небольшая задержка, чтобы UI успел обновиться
-                time.sleep(0.1)
+                # Небольшая пауза для UI в фоновом потоке (не блокирует главный)
+                import time
+                time.sleep(0.05)
 
                 # Проверка отмены
                 if self._file_operation_cancel:
@@ -7408,9 +7409,9 @@ class PythonLearningApp(MDApp):
                 # 4. ЗАГРУЗКА В РЕДАКТОР (в главном потоке)
                 Clock.schedule_once(lambda dt: self._apply_loaded_content(content, file_path), 0)
 
-                # 5. СООБЩЕНИЕ ОБ УСПЕХЕ
+                # 5. СООБЩЕНИЕ ОБ УСПЕХЕ (с задержкой, чтобы предыдущее сообщение успело показаться)
                 Clock.schedule_once(lambda dt: self.show_result_popup(
-                    f"[+] {tr.get('file_success_loaded', 'Loaded')}: {filename}"), 0.1)
+                    f"[+] {tr.get('file_success_loaded', 'Loaded')}: {filename}"), 0.2)
 
             except Exception as e:
                 if not self._file_operation_cancel:

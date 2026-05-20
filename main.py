@@ -5520,6 +5520,8 @@ class PythonLearningApp(MDApp):
         self._pending_operations = []
         self._cleanup_scheduled = False
         self._code_running = False
+        self._file_operation_cancel = False
+        self._current_file_operation = None
 
         # === НОВОЕ: Инициализация пути для файлового менеджера ===
         self.current_path = self.get_external_storage_path()
@@ -6886,31 +6888,58 @@ class PythonLearningApp(MDApp):
 
         full_path = os.path.join(path, filename)
 
-        # Проверка существования файла должна быть в главном потоке
+        # Проверка существования файла
         if os.path.exists(full_path):
             self._confirm_overwrite(full_path)
             return
 
-        # Показываем индикатор сохранения
-        self.show_result_popup(f" Сохранение: {filename}...")
+        # Сбрасываем флаг отмены
+        self._file_operation_cancel = False
+        self._current_file_operation = "save"
+
+        # Показываем индикатор (без эмодзи)
+        self.show_result_popup(f"[~] Saving: {filename}...")
 
         def save_in_background():
             try:
+                # Проверяем отмену перед началом
+                if self._file_operation_cancel:
+                    Clock.schedule_once(lambda dt: self.show_result_popup(
+                        "[i] Save cancelled"))
+                    return
+
                 if not os.path.exists(path):
                     os.makedirs(path, exist_ok=True)
 
                 with open(full_path, 'w', encoding='utf-8') as f:
-                    f.write(self.code_input.text)
+                    # Сохраняем с индикацией прогресса для больших файлов
+                    text = self.code_input.text
+                    if len(text) > 100000:  # > 100KB
+                        Clock.schedule_once(lambda dt: self.show_result_popup(
+                            f"[~] Saving large file ({len(text) // 1024} KB)..."))
+
+                    f.write(text)
 
                 Clock.schedule_once(lambda dt: self._on_save_success(full_path, filename))
+
             except PermissionError:
-                Clock.schedule_once(lambda dt: self.show_result_popup(
-                    f"X {tr.get('error_save', 'Error')}: {tr.get('no_permission', 'No permission')}"))
+                if not self._file_operation_cancel:
+                    Clock.schedule_once(lambda dt: self.show_result_popup(
+                        f"[-] {tr.get('error_save', 'Error')}: {tr.get('no_permission', 'No permission')}"))
             except Exception as e:
-                Clock.schedule_once(lambda dt: self.show_result_popup(
-                    f"X {tr.get('error_save', 'Error')}: {str(e)[:100]}"))
+                if not self._file_operation_cancel:
+                    Clock.schedule_once(lambda dt: self.show_result_popup(
+                        f"[-] {tr.get('error_save', 'Error')}: {str(e)[:100]}"))
+            finally:
+                self._current_file_operation = None
 
         threading.Thread(target=save_in_background, daemon=True).start()
+
+    def cancel_file_operation(self):
+        """Отменяет текущую файловую операцию"""
+        if self._current_file_operation:
+            self._file_operation_cancel = True
+            self.show_result_popup(f"[i] Cancelling {self._current_file_operation}...")
 
     def _on_save_success(self, full_path, filename):
         """Обработчик успешного сохранения (главный поток)"""
@@ -6918,7 +6947,12 @@ class PythonLearningApp(MDApp):
         self._has_unsaved_changes = False
         self._update_title_saved()
         self.tab_manager.set_active_file(full_path)
-        self.show_result_popup(f"✓ {self.tr.get('file_saved', 'Saved')}:\n{filename}")
+
+        # Показываем успех без эмодзи
+        self.show_result_popup(f"[+] {self.tr.get('file_saved', 'Saved')}:\n{filename}")
+
+        # Восстанавливаем кнопку запуска
+        self._restore_run_button()
 
     def _do_save_file(self, full_path, filename):
         try:
@@ -7286,62 +7320,108 @@ class PythonLearningApp(MDApp):
             return
         file_path = selection[0]
 
-        # Показываем индикатор загрузки
-        self.show_result_popup(f" Загрузка: {os.path.basename(file_path)}...")
+        # Сбрасываем флаг отмены
+        self._file_operation_cancel = False
+        self._current_file_operation = "load"
+
+        # Показываем индикатор (без эмодзи)
+        filename = os.path.basename(file_path)
+        self.show_result_popup(f"[i] Loading: {filename}...")
 
         def load_in_background():
             try:
                 file_size = os.path.getsize(file_path)
+
                 if file_size > 1_000_000:  # > 1MB
+                    Clock.schedule_once(lambda dt: self._show_loading_progress(
+                        f"[~] Loading large file ({file_size // 1024} KB)...\nThis may take a few seconds",
+                        file_size
+                    ))
+
+                # Проверяем, не отменена ли операция
+                if self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        f" Загрузка большого файла ({file_size // 1024} KB)...\nЭто может занять несколько секунд"))
+                        "[i] Loading cancelled"))
+                    return
 
                 content = self._read_file_content(file_path)
                 if content is None:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        tr.get('encoding_error', 'X Cannot determine encoding')))
+                        f"[-] {tr.get('encoding_error', 'Cannot determine encoding')}"))
+                    return
+
+                # Проверяем ещё раз перед загрузкой
+                if self._file_operation_cancel:
+                    Clock.schedule_once(lambda dt: self.show_result_popup(
+                        "[i] Loading cancelled"))
                     return
 
                 # Загружаем в главном потоке
                 Clock.schedule_once(lambda dt: self._apply_loaded_content(content, file_path))
 
-                filename = os.path.basename(file_path)
                 Clock.schedule_once(lambda dt: self.show_result_popup(
-                    f"✓ {tr.get('file_loaded', 'Loaded')}: {filename}"))
+                    f"[+] {tr.get('file_loaded', 'Loaded')}: {filename}"))
 
             except Exception as e:
-                error_msg = f"X {tr.get('error_load', 'Error')}: {str(e)[:100]}"
-                Clock.schedule_once(lambda dt: self.show_result_popup(error_msg))
+                if not self._file_operation_cancel:
+                    error_msg = f"[-] {tr.get('error_load', 'Error')}: {str(e)[:100]}"
+                    Clock.schedule_once(lambda dt: self.show_result_popup(error_msg))
+            finally:
+                self._current_file_operation = None
 
         threading.Thread(target=load_in_background, daemon=True).start()
 
+    def _show_loading_progress(self, message, file_size):
+        """Показывает прогресс загрузки большого файла"""
+        # Просто показываем сообщение, так как прогресс сложно отследить
+        # при чтении из URI
+        self.show_result_popup(message)
+
     def _read_file_content(self, file_path):
-        with open(file_path, 'rb') as f:
-            raw_start = f.read(4)
-        if raw_start.startswith(b'\xef\xbb\xbf'):
-            encoding = 'utf-8-sig'
-        elif raw_start.startswith(b'\xff\xfe'):
-            encoding = 'utf-16-le'
-        elif raw_start.startswith(b'\xfe\xff'):
-            encoding = 'utf-16-be'
-        elif raw_start.startswith(b'\x00\x00\xfe\xff'):
-            encoding = 'utf-32-be'
-        elif raw_start.startswith(b'\xff\xfe\x00\x00'):
-            encoding = 'utf-32-le'
-        else:
-            encoding = 'utf-8'
+        """Читает содержимое файла с поддержкой отмены"""
         try:
-            with open(file_path, 'r', encoding=encoding) as f:
-                return f.read()
-        except UnicodeDecodeError:
-            pass
-        for encoding in ['cp1251', 'latin-1', 'windows-1251']:
-            try:
-                with open(file_path, 'r', encoding=encoding) as f:
-                    return f.read()
-            except UnicodeDecodeError:
-                continue
-        return None
+            with open(file_path, 'rb') as f:
+                # Определяем кодировку по BOM
+                raw_start = f.read(4)
+                f.seek(0)
+
+                if raw_start.startswith(b'\xef\xbb\xbf'):
+                    encoding = 'utf-8-sig'
+                elif raw_start.startswith(b'\xff\xfe'):
+                    encoding = 'utf-16-le'
+                elif raw_start.startswith(b'\xfe\xff'):
+                    encoding = 'utf-16-be'
+                elif raw_start.startswith(b'\x00\x00\xfe\xff'):
+                    encoding = 'utf-32-be'
+                elif raw_start.startswith(b'\xff\xfe\x00\x00'):
+                    encoding = 'utf-32-le'
+                else:
+                    encoding = 'utf-8'
+
+                # Читаем с проверкой отмены
+                try:
+                    content = f.read().decode(encoding)
+                    return content
+                except UnicodeDecodeError:
+                    pass
+
+                # Пробуем другие кодировки
+                for enc in ['cp1251', 'latin-1', 'windows-1251', 'koi8-r']:
+                    if self._file_operation_cancel:
+                        return None
+                    f.seek(0)
+                    try:
+                        return f.read().decode(enc)
+                    except UnicodeDecodeError:
+                        continue
+
+                # Fallback: заменяем ошибки
+                f.seek(0)
+                return f.read().decode('utf-8', errors='replace')
+
+        except Exception as e:
+            log_error(f"Read file error: {e}")
+            return None
 
     def _load_large_file(self, file_path, file_size):
         tr = self.tr

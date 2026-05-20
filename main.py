@@ -7377,9 +7377,8 @@ class PythonLearningApp(MDApp):
 
     def _show_loading_progress(self, message, file_size):
         """Показывает прогресс загрузки большого файла"""
-        # Просто показываем сообщение, так как прогресс сложно отследить
-        # при чтении из URI
-        self.show_result_popup(message)
+        # ОБЯЗАТЕЛЬНО через Clock.schedule_once для UI в главном потоке
+        Clock.schedule_once(lambda dt: self.show_result_popup(message), 0)
 
     def _read_file_content(self, file_path):
         """Читает содержимое файла с поддержкой отмены"""

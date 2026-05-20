@@ -7296,7 +7296,7 @@ class PythonLearningApp(MDApp):
 
             # ⭐ ПРОВЕРКА: если пользователь удалил расширение - просим сохранить заново
             if '.' not in filename:
-                self.show_result_popup("⚠️ Добавьте расширение к имени файла\n(например: .py, .txt, .json)")
+                self.show_result_popup("! Добавьте расширение к имени файла\n(например: .py, .txt, .json)")
                 return
 
             # Сохраняем

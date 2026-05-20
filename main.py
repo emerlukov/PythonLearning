@@ -7016,7 +7016,10 @@ class PythonLearningApp(MDApp):
                 log_error(f"Error opening file picker: {e}")
                 self.show_result_popup(f"Ошибка открытия диалога:\n{str(e)}")
         else:
-            self._show_legacy_file_dialog(is_save=False)
+            #self._show_legacy_file_dialog(is_save=False)
+
+            # Показываем сообщение, что SAF недоступен на ПК
+            self.show_result_popup("SAF доступен только на Android\nДля ПК используйте классический диалог")
 
     def show_save_dialog(self, instance=None):
         """Открывает системный диалог сохранения файла с выбором расширения"""
@@ -7070,7 +7073,9 @@ class PythonLearningApp(MDApp):
                 log_error(f"Save dialog error: {e}")
                 self.show_result_popup(f"Ошибка открытия диалога сохранения:\n{str(e)}")
         else:
-            self._show_legacy_file_dialog(is_save=True)
+            #self._show_legacy_file_dialog(is_save=True)
+
+            self.show_result_popup("SAF доступен только на Android\nДля ПК используйте классический диалог")
 
     def on_activity_result(self, request_code, result_code, intent):
         """Обработка результатов системных диалогов"""
@@ -7100,7 +7105,7 @@ class PythonLearningApp(MDApp):
 
             content_resolver = PythonActivity.mActivity.getContentResolver()
 
-            # Получаем имя файла
+            # Имя файла
             cursor = content_resolver.query(uri, None, None, None, None)
             filename = "unknown.py"
             if cursor and cursor.moveToFirst():
@@ -7110,13 +7115,7 @@ class PythonLearningApp(MDApp):
                     filename = cursor.getString(name_index) or "unknown.py"
                 cursor.close()
 
-            # Очистка имени файла
-            filename = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', filename.strip())
-
-            # Показываем индикатор загрузки — ТОЛЬКО ОДИН РАЗ
-            self.show_result_popup(f"Загрузка:\n{filename}")
-
-            # Читаем содержимое
+            # Чтение содержимого
             input_stream = content_resolver.openInputStream(uri)
             byte_array = bytearray()
             buffer = bytearray(8192)
@@ -7125,21 +7124,19 @@ class PythonLearningApp(MDApp):
                 if length == -1:
                     break
                 byte_array.extend(buffer[:length])
-            input_stream.close()
 
             text = byte_array.decode('utf-8', errors='replace')
 
-            # Передаём дальше
-            Clock.schedule_once(lambda dt: self._load_file_into_editor(filename, text, uri), 0.1)
+            # Важно: всё UI через main thread
+            Clock.schedule_once(lambda dt: self._load_file_into_editor(filename, text), 0)
 
         except Exception as e:
             log_error(f"_read_file_from_uri error: {e}")
-            Clock.schedule_once(lambda dt: self.show_result_popup(f"❌ Не удалось прочитать файл"), 0.1)
+            self.show_result_popup(f"✕ Не удалось прочитать файл:\n{str(e)[:200]}")
 
-    def _load_file_into_editor(self, filename, content, uri=None):
-        """Загрузка файла в редактор — финальный шаг"""
+    def _load_file_into_editor(self, filename, content):
+        """Безопасная загрузка файла в редактор (выполняется в главном потоке)"""
         try:
-            # Загружаем файл
             if hasattr(self, 'tab_manager') and self.tab_manager:
                 editor = self.tab_manager.add_tab(title=filename, text=content or "")
                 self._on_tab_changed(editor)
@@ -7149,25 +7146,18 @@ class PythonLearningApp(MDApp):
                     self.editor.original_lines = (content or "").split('\n')
                     self.editor._update_line_panel()
 
-            # Обновляем состояние
             self._current_file = filename
-            if uri:
-                if not hasattr(self, '_saved_uris'):
-                    self._saved_uris = {}
-                self._saved_uris['current'] = uri
-
             self._has_unsaved_changes = False
             self._update_title_saved()
 
-            # === ТОЛЬКО ОДИН ПОПАП УСПЕХА ===
-            success_msg = f"✓ {self.tr.get('file_loaded', 'File loaded')}\n{filename}"
-            Clock.schedule_once(lambda dt: self.show_result_popup(success_msg), 0.3)
+            self.show_result_popup(self.tr.get('file_loaded', '✓ Файл загружен'))
 
+            # Восстанавливаем кнопку запуска
             self._restore_run_button()
 
         except Exception as e:
             log_error(f"_load_file_into_editor error: {e}")
-            Clock.schedule_once(lambda dt: self.show_result_popup("❌ Ошибка открытия файла"), 0.1)
+            self.show_result_popup("Ошибка при открытии файла в редакторе")
 
     def _save_file_to_uri(self, uri):
         """Сохранение файла"""
@@ -8544,20 +8534,6 @@ def пауза():
 
         tr = self.tr
 
-        # Защита от пустых и плохих данных
-        if not result or str(result).strip() == "":
-            return  # не показывать пустой попап
-        if str(result).strip() in ["None", "[]", "{}"]:
-            return
-
-        # === ИСПРАВЛЕНИЕ: очистка текста от проблемных символов ===
-        if isinstance(result, str):
-            import re
-            # Удаляем все управляющие символы (кроме \n и \t)
-            result = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]', '', result)
-            # Дополнительно чистим от нулевых и специальных символов
-            result = result.replace('\x00', '').strip()
-
         if len(result) > 50000:
             result = result[:50000] + "\n\n... " + \
                      tr.get('output_truncated', '(truncated)')
@@ -8567,12 +8543,11 @@ def пауза():
 
         scroll = ScrollView(size_hint=(1, 0.85),
                             do_scroll_x=False, do_scroll_y=True)
-
         output_view = TextInput(
             text=str(result),
             readonly=True,
             font_size=dp(16),
-            font_name='SourceBold',  # ← можно попробовать 'DejaVuSans' если квадратики останутся
+            font_name='SourceBold',
             background_color=theme['result_bg'],
             foreground_color=theme['result_text'],
             do_wrap=True,
@@ -8581,7 +8556,6 @@ def пауза():
             height=dp(33),
             padding=(dp(5), dp(5), dp(5), dp(5))
         )
-
         output_view.bind(minimum_height=output_view.setter('height'))
         scroll.add_widget(output_view)
         content.add_widget(scroll)
@@ -8601,6 +8575,7 @@ def пауза():
             on_release=lambda x: self._copy_result(result)
         )
 
+        # ВИБРАЦИЯ ДЛЯ КНОПКИ COPY
         btn_copy.bind(on_press=lambda x: self.vibrate_short())
 
         btn_close = Button(
@@ -8615,13 +8590,14 @@ def пауза():
             height=dp(33)
         )
 
+        # ВИБРАЦИЯ ДЛЯ КНОПКИ CLOSE
         btn_close.bind(on_press=lambda x: self.vibrate_short())
 
         btn_layout.add_widget(btn_copy)
         btn_layout.add_widget(btn_close)
         content.add_widget(btn_layout)
 
-        # Адаптивный размер
+        # Адаптивный размер Popup
         category = get_screen_category()
         if category == 'tablet':
             size_hint = (0.75, 0.70)
@@ -8636,14 +8612,12 @@ def пауза():
             title_bg=theme.get('popup_title_bg', (0.188, 0.204, 0.251, 1)),
             title_color=theme['popup_title'],
             content=content,
-            size_hint=size_hint,
+            size_hint=size_hint,  # <--- ИСПОЛЬЗУЕМ ПЕРЕМЕННУЮ
             auto_dismiss=False,
             separator_color=theme.get('popup_separator', (0.25, 0.25, 0.25, 1))
         )
-
         btn_close.bind(on_release=popup.dismiss)
         popup.open()
-
         self._popup = popup
         self._current_popup_type = 'result'
 

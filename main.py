@@ -7368,60 +7368,62 @@ class PythonLearningApp(MDApp):
         self._file_operation_cancel = False
         self._current_file_operation = "load"
 
-        # Показываем индикатор (с переводом)
         filename = os.path.basename(file_path)
+
+        # 1. ПЕРВОЕ СООБЩЕНИЕ - показываем сразу
         self.show_result_popup(f"{tr.get('loading_file', 'Loading')}: {filename}...")
 
         def load_in_background():
             try:
                 file_size = os.path.getsize(file_path)
 
-                # ДОБАВЛЯЕМ ОТЛАДОЧНЫЙ ВЫВОД
-                print(f"[DEBUG] File size: {file_size} bytes ({file_size // 1024} KB)")
+                # 2. ЕСЛИ ФАЙЛ БОЛЬШОЙ - показываем сообщение через Clock
+                if file_size > 1_000_000:
+                    Clock.schedule_once(lambda dt: self.show_result_popup(
+                        f"{tr.get('loading_large_file', 'Loading large file')} ({file_size // 1024} KB)...\n{tr.get('this_may_take_seconds', 'This may take a few seconds')}"
+                    ), 0)
 
-                # Проверяем размер файла
-                if file_size > 1_000_000:  # > 1MB
-                    # Формируем сообщение
-                    size_kb = file_size // 1024
-                    msg = f"{tr.get('loading_large_file', 'Loading large file')} ({size_kb} KB)...\n{tr.get('this_may_take_seconds', 'This may take a few seconds')}"
+                # Небольшая задержка, чтобы UI успел обновиться
+                time.sleep(0.1)
 
-                    print(f"[DEBUG] Large file detected, showing message: {msg}")
-
-                    # Показываем сообщение через Clock (обязательно)
-                    Clock.schedule_once(lambda dt: self.show_result_popup(msg), 0.1)
-
-                # Проверяем, не отменена ли операция
+                # Проверка отмены
                 if self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        tr.get('loading_cancelled', 'Loading cancelled')))
+                        tr.get('loading_cancelled', 'Loading cancelled')), 0)
                     return
 
+                # 3. ЧТЕНИЕ ФАЙЛА (долгая операция в фоне)
                 content = self._read_file_content(file_path)
+
                 if content is None:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        f"[-] {tr.get('encoding_error', 'Cannot determine encoding')}"))
+                        f"[-] {tr.get('encoding_error', 'Cannot determine encoding')}"), 0)
                     return
 
-                # Проверяем ещё раз перед загрузкой
                 if self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        tr.get('loading_cancelled', 'Loading cancelled')))
+                        tr.get('loading_cancelled', 'Loading cancelled')), 0)
                     return
 
-                # Загружаем в главном потоке
-                Clock.schedule_once(lambda dt: self._apply_loaded_content(content, file_path))
+                # 4. ЗАГРУЗКА В РЕДАКТОР (в главном потоке)
+                Clock.schedule_once(lambda dt: self._apply_loaded_content(content, file_path), 0)
 
+                # 5. СООБЩЕНИЕ ОБ УСПЕХЕ
                 Clock.schedule_once(lambda dt: self.show_result_popup(
-                    f"[+] {tr.get('file_success_loaded', 'Loaded')}: {filename}"))
+                    f"[+] {tr.get('file_success_loaded', 'Loaded')}: {filename}"), 0.1)
 
             except Exception as e:
                 if not self._file_operation_cancel:
-                    error_msg = f"[-] {tr.get('file_load_error', 'Load error')}: {str(e)[:100]}"
-                    Clock.schedule_once(lambda dt: self.show_result_popup(error_msg))
+                    Clock.schedule_once(lambda dt: self.show_result_popup(
+                        f"[-] {tr.get('file_load_error', 'Load error')}: {str(e)[:100]}"), 0)
             finally:
                 self._current_file_operation = None
 
         threading.Thread(target=load_in_background, daemon=True).start()
+
+    def force_ui_update(self):
+        """Принудительно обновляет UI"""
+        Clock.schedule_once(lambda dt: None, 0.01)
 
     def _show_loading_progress(self, message, file_size):
         """Показывает прогресс загрузки большого файла"""

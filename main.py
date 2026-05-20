@@ -7018,7 +7018,7 @@ class PythonLearningApp(MDApp):
             self._show_legacy_file_dialog(is_save=False)
 
     def show_save_dialog(self, instance=None):
-        """Открывает диалог ввода имени файла перед сохранением"""
+        """Открывает системный диалог сохранения файла с правильным расширением"""
         if platform != 'android':
             self.show_result_popup("Эта функция доступна только на Android")
             return
@@ -7027,7 +7027,35 @@ class PythonLearningApp(MDApp):
             self.show_result_popup("JNIUS не доступен")
             return
 
-        self._show_filename_input_dialog()
+        try:
+            from jnius import autoclass, cast
+
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            Intent = autoclass('android.content.Intent')
+
+            intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            intent.addCategory(Intent.CATEGORY_OPENABLE)
+            intent.setType("*/*")
+
+            # ⭐ ФОРМИРУЕМ ПРАВИЛЬНОЕ ИМЯ С РАСШИРЕНИЕМ
+            suggested_name = "script.py"
+            if self._current_file and isinstance(self._current_file, str):
+                filename = os.path.basename(self._current_file)
+                if filename:
+                    # Если нет расширения - добавляем .py
+                    if '.' not in filename:
+                        suggested_name = filename + '.py'
+                    else:
+                        suggested_name = filename
+
+            intent.putExtra(Intent.EXTRA_TITLE, suggested_name)
+
+            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
+            current_activity.startActivityForResult(intent, 1002)
+
+        except Exception as e:
+            log_error(f"Save dialog error: {e}")
+            self.show_result_popup(f"Ошибка открытия диалога сохранения:\n{str(e)}")
 
     def _show_filename_input_dialog(self):
         """Показывает диалог ввода имени файла перед сохранением"""
@@ -7242,7 +7270,7 @@ class PythonLearningApp(MDApp):
             self.show_result_popup(f"[-] Error opening file: {str(e)[:100]}")
 
     def _save_file_to_uri(self, uri):
-        """Сохранение файла (расширение уже проверено в диалоге)"""
+        """Сохранение файла с проверкой расширения"""
         if platform != 'android':
             return
 
@@ -7250,7 +7278,7 @@ class PythonLearningApp(MDApp):
             return
 
         try:
-            from jnius import autoclass
+            from jnius import autoclass, cast
 
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
@@ -7266,7 +7294,12 @@ class PythonLearningApp(MDApp):
                     filename = cursor.getString(name_index)
                 cursor.close()
 
-            # Сохраняем содержимое
+            # ⭐ ПРОВЕРКА: если пользователь удалил расширение - просим сохранить заново
+            if '.' not in filename:
+                self.show_result_popup("⚠️ Добавьте расширение к имени файла\n(например: .py, .txt, .json)")
+                return
+
+            # Сохраняем
             output_stream = content_resolver.openOutputStream(uri)
             text_bytes = self.code_input.text.encode('utf-8')
             output_stream.write(text_bytes)

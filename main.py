@@ -7143,7 +7143,7 @@ class PythonLearningApp(MDApp):
                                 self.show_result_popup(f"! Не удалось прочитать файл"), 0.1)
 
     def _load_file_into_editor(self, filename, content, uri=None):
-        """Финальная загрузка файла в редактор"""
+        """Загрузка содержимого файла в редактор"""
         try:
             if hasattr(self, 'tab_manager') and self.tab_manager:
                 editor = self.tab_manager.add_tab(title=filename, text=content or "")
@@ -7155,22 +7155,24 @@ class PythonLearningApp(MDApp):
                     self.editor._update_line_panel()
 
             self._current_file = filename
-            if uri and not hasattr(self, '_saved_uris'):
-                self._saved_uris = {}
+            if uri:
+                if not hasattr(self, '_saved_uris'):
+                    self._saved_uris = {}
                 self._saved_uris['current'] = uri
 
             self._has_unsaved_changes = False
             self._update_title_saved()
 
-            # Показываем успех **один раз**
-            success_text = f"✓ {self.tr.get('file_loaded', 'File loaded')}\n{filename}"
-            Clock.schedule_once(lambda dt: self.show_result_popup(success_text), 0.2)
+            # === ИСПРАВЛЕНИЕ: только один финальный попап ===
+            success_msg = f"✓ {self.tr.get('file_loaded', 'File loaded')}\n{filename}"
+
+            Clock.schedule_once(lambda dt: self.show_result_popup(success_msg), 0.3)
 
             self._restore_run_button()
 
         except Exception as e:
             log_error(f"_load_file_into_editor error: {e}")
-            self.show_result_popup("! Ошибка открытия файла")
+            Clock.schedule_once(lambda dt: self.show_result_popup(" Ошибка открытия файла"), 0.1)
 
     def _save_file_to_uri(self, uri):
         """Сохранение файла"""
@@ -8546,6 +8548,12 @@ def пауза():
         self.vibrate_short()
 
         tr = self.tr
+
+        # Защита от пустых и плохих данных
+        if not result or str(result).strip() == "":
+            return  # не показывать пустой попап
+        if str(result).strip() in ["None", "[]", "{}"]:
+            return
 
         # === ИСПРАВЛЕНИЕ: очистка текста от проблемных символов ===
         if isinstance(result, str):

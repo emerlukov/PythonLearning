@@ -120,6 +120,16 @@ from kivymd.uix.button import MDRectangleFlatButton, MDFlatButton
 from kivymd.uix.textfield import MDTextField
 from kivymd.uix.label import MDIcon
 
+# ====================== ИМПОРТ JNIUS (ТОЛЬКО ДЛЯ ANDROID) ======================
+try:
+    from jnius import autoclass, cast
+    JNIUS_AVAILABLE = True
+except ImportError:
+    JNIUS_AVAILABLE = False
+    autoclass = None
+    cast = None
+    print("[INFO] jnius not available (running on desktop)")
+
 # ====================== АДАПТАЦИЯ ПОД РАЗНЫЕ ЭКРАНЫ ======================
 from kivy.core.window import Window
 from kivy.metrics import dp, sp
@@ -6978,8 +6988,14 @@ class PythonLearningApp(MDApp):
             self.show_result_popup(f"X {self.tr.get('error_save', 'Error')}:\n{e}")
 
     def show_load_dialog(self, instance=None):
-        """Открывает системный диалог выбора файла"""
+        """Открывает диалог выбора файла"""
+
+        # Для Android используем SAF
         if platform == 'android':
+            if not JNIUS_AVAILABLE:
+                self.show_result_popup("JNIUS не доступен")
+                return
+
             try:
                 from jnius import autoclass, cast
 
@@ -6988,37 +7004,7 @@ class PythonLearningApp(MDApp):
 
                 intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("*/*")  # Позволяет видеть все файлы
-
-                # Расширенный список поддерживаемых форматов
-                intent.putExtra(Intent.EXTRA_MIME_TYPES, [
-                    "text/plain",
-                    "text/x-python",
-                    "application/x-python-code",
-                    "application/json",
-                    "text/markdown",
-                    "text/html",
-                    "text/css",
-                    "text/javascript",
-                    "application/javascript",
-                    "text/xml",
-                    "application/xml",
-                    "text/yaml",
-                    "text/x-yaml",
-                    "application/x-yaml",
-                    "text/csv",
-                    "text/x-c",
-                    "text/x-c++",
-                    "text/x-java",
-                    "text/x-go",
-                    "text/x-rust",
-                    "text/x-shellscript",
-                    "application/sql",
-                    "text/sql",
-                    "text/x-log",
-                    "text/x-ini",
-                    "text/x-toml",
-                ])
+                intent.setType("*/*")
 
                 current_activity = cast('android.app.Activity', PythonActivity.mActivity)
                 current_activity.startActivityForResult(intent, 1001)
@@ -7026,54 +7012,40 @@ class PythonLearningApp(MDApp):
             except Exception as e:
                 log_error(f"Error opening file picker: {e}")
                 self.show_result_popup(f"Ошибка открытия диалога:\n{str(e)}")
-        else:
-            # self._show_legacy_file_dialog(is_save=False)
 
-            # Показываем сообщение, что SAF недоступен на ПК
-            self.show_result_popup("SAF доступен только на Android\nДля ПК используйте классический диалог")
+        # Для ПК используем классический диалог
+        else:
+            self._show_legacy_file_dialog(is_save=False)
 
     def show_save_dialog(self, instance=None):
-        """Открывает системный диалог сохранения файла с автоматическим добавлением .py"""
+        """Открывает диалог сохранения файла"""
+
+        # Для Android используем SAF
         if platform == 'android':
+            if not JNIUS_AVAILABLE:
+                self.show_result_popup("JNIUS не доступен")
+                return
+
             try:
                 from jnius import autoclass, cast
-                from android import activity
 
                 PythonActivity = autoclass('org.kivy.android.PythonActivity')
                 Intent = autoclass('android.content.Intent')
 
                 intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("text/plain")
+                intent.setType("*/*")
 
-                # Предлагаемое имя файла
                 suggested_name = "script.py"
                 if self._current_file and isinstance(self._current_file, str):
                     filename = os.path.basename(self._current_file)
                     if filename:
-                        # ⭐ ПРОВЕРКА: есть ли расширение у текущего файла?
                         if '.' in filename and not filename.endswith('.'):
-                            # Расширение есть - оставляем как есть
                             suggested_name = filename
                         else:
-                            # Расширения нет - добавляем .py
                             suggested_name = filename + '.py'
 
                 intent.putExtra(Intent.EXTRA_TITLE, suggested_name)
-
-                # Разрешаем только текстовые файлы (любые расширения)
-                intent.putExtra(Intent.EXTRA_MIME_TYPES, [
-                    "text/plain",
-                    "text/x-python",
-                    "application/json",
-                    "text/markdown",
-                    "text/html",
-                    "text/css",
-                    "text/javascript",
-                    "application/xml",
-                    "text/yaml",
-                    "text/csv",
-                ])
 
                 current_activity = cast('android.app.Activity', PythonActivity.mActivity)
                 current_activity.startActivityForResult(intent, 1002)
@@ -7081,8 +7053,10 @@ class PythonLearningApp(MDApp):
             except Exception as e:
                 log_error(f"Save dialog error: {e}")
                 self.show_result_popup(f"Ошибка открытия диалога сохранения:\n{str(e)}")
+
+        # Для ПК используем классический диалог
         else:
-            self.show_result_popup("SAF доступен только на Android")
+            self._show_legacy_file_dialog(is_save=True)
 
     def on_activity_result(self, request_code, result_code, intent):
         """Обработка результатов системных диалогов"""
@@ -7171,8 +7145,13 @@ class PythonLearningApp(MDApp):
 
     def _save_file_to_uri(self, uri):
         """Сохранение файла с автоматическим добавлением .py если нет расширения"""
+        if platform != 'android':
+            self.show_result_popup("Эта функция доступна только на Android")
+            return
+
         try:
-            from jnius import autoclass
+            from jnius import autoclass, cast
+
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
             # Получаем имя файла из URI
@@ -7187,26 +7166,22 @@ class PythonLearningApp(MDApp):
                     filename = cursor.getString(name_index)
                 cursor.close()
 
-            # ⭐ ПРОВЕРКА: есть ли расширение?
+            # Проверка: есть ли расширение?
             if '.' not in filename:
-                # Расширения нет - добавляем .py
+                # Расширения нет - создаём новый URI с .py
                 new_filename = filename + '.py'
 
-                # Создаём новый Intent с правильным именем
                 Intent = autoclass('android.content.Intent')
                 new_intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
                 new_intent.addCategory(Intent.CATEGORY_OPENABLE)
-                new_intent.setType("text/plain")
+                new_intent.setType("*/*")
                 new_intent.putExtra(Intent.EXTRA_TITLE, new_filename)
 
-                # Запускаем новый диалог
                 current_activity = cast('android.app.Activity', PythonActivity.mActivity)
                 current_activity.startActivityForResult(new_intent, 1002)
-
-                # Сохраняем старый URI на случай отмены (не используем его)
                 return
 
-            # Расширение есть (любое: .py, .txt, .json, .md и т.д.) - сохраняем как есть
+            # Расширение есть - сохраняем
             output_stream = content_resolver.openOutputStream(uri)
             text_bytes = self.code_input.text.encode('utf-8')
             output_stream.write(text_bytes)
@@ -7216,11 +7191,12 @@ class PythonLearningApp(MDApp):
             self._has_unsaved_changes = False
             self._update_title_saved()
 
-            # Показываем короткое имя файла
+            if hasattr(self, 'tab_manager') and self.tab_manager:
+                self.tab_manager.set_active_file(filename)
+                self.tab_manager.set_active_title(filename)
+
             short_name = filename if len(filename) < 30 else filename[:27] + "..."
             self.show_result_popup(f"✓ {short_name}")
-
-            # Восстанавливаем кнопку запуска
             self._restore_run_button()
 
         except Exception as e:

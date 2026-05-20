@@ -23,6 +23,19 @@ Python Learning App
 - Доступ к файлам роботает!!!
 - Подправленны темы и синтаксис!!!
 - Добавлен виброотклик !!!
+- Splash Screen	Убрали дёрганье клавиатуры
+- Оптимизация редактора	Плавный набор текста
+- Прогрев Pygments	Нет первого фриза при подсветке
+- AI Assistant	Стабильные UI обновления
+- Убрали gc.collect()	Микро-фризы исчезли
+- Добавлена переменная self._code_running
+- Метод _on_tab_changed теперь безопаснее
+- Метод run_code не даёт запустить код дважды
+- Результат выполнения обрезается при большой длине
+- load_file теперь загружает файлы в фоне
+- save_file теперь сохраняет файлы в фоне
+- Добавлен индикатор загрузки/сохранения
+- UI не блокируется при работе с большими файлами
 """
 
 # ====================== ИМПОРТ СТАНДАРТНЫХ БИБЛИОТЕК ======================
@@ -6862,26 +6875,50 @@ class PythonLearningApp(MDApp):
 
     def save_file(self, path, filename):
         tr = self.tr
-        try:
-            if not filename or not filename.strip():
-                filename = 'script.py'
-            if not filename.endswith('.py'):
-                filename += '.py'
-            filename = filename.strip()
-            invalid_chars = '<>:"/\\|?*'
-            for char in invalid_chars:
-                filename = filename.replace(char, '_')
-            if not os.path.exists(path):
-                os.makedirs(path, exist_ok=True)
-            full_path = os.path.join(path, filename)
-            if os.path.exists(full_path):
-                self._confirm_overwrite(full_path)
-                return
-            self._do_save_file(full_path, filename)
-        except PermissionError:
-            self.show_result_popup(tr.get('error_save', 'X Error') + ': ' + tr.get('no_permission', 'No permission'))
-        except Exception as e:
-            self.show_result_popup(tr.get('error_save', 'X Error') + f':\n{e}')
+        if not filename or not filename.strip():
+            filename = 'script.py'
+        if not filename.endswith('.py'):
+            filename += '.py'
+        filename = filename.strip()
+        invalid_chars = '<>:"/\\|?*'
+        for char in invalid_chars:
+            filename = filename.replace(char, '_')
+
+        full_path = os.path.join(path, filename)
+
+        # Проверка существования файла должна быть в главном потоке
+        if os.path.exists(full_path):
+            self._confirm_overwrite(full_path)
+            return
+
+        # Показываем индикатор сохранения
+        self.show_result_popup(f" Сохранение: {filename}...")
+
+        def save_in_background():
+            try:
+                if not os.path.exists(path):
+                    os.makedirs(path, exist_ok=True)
+
+                with open(full_path, 'w', encoding='utf-8') as f:
+                    f.write(self.code_input.text)
+
+                Clock.schedule_once(lambda dt: self._on_save_success(full_path, filename))
+            except PermissionError:
+                Clock.schedule_once(lambda dt: self.show_result_popup(
+                    f"X {tr.get('error_save', 'Error')}: {tr.get('no_permission', 'No permission')}"))
+            except Exception as e:
+                Clock.schedule_once(lambda dt: self.show_result_popup(
+                    f"X {tr.get('error_save', 'Error')}: {str(e)[:100]}"))
+
+        threading.Thread(target=save_in_background, daemon=True).start()
+
+    def _on_save_success(self, full_path, filename):
+        """Обработчик успешного сохранения (главный поток)"""
+        self._current_file = full_path
+        self._has_unsaved_changes = False
+        self._update_title_saved()
+        self.tab_manager.set_active_file(full_path)
+        self.show_result_popup(f"✓ {self.tr.get('file_saved', 'Saved')}:\n{filename}")
 
     def _do_save_file(self, full_path, filename):
         try:
@@ -7248,20 +7285,35 @@ class PythonLearningApp(MDApp):
         if not selection:
             return
         file_path = selection[0]
-        try:
-            file_size = os.path.getsize(file_path)
-            if file_size > 1_000_000:
-                self._load_large_file(file_path, file_size)
-                return
-            content = self._read_file_content(file_path)
-            if content is None:
-                self.show_result_popup(tr.get('encoding_error', 'X Cannot determine encoding'))
-                return
-            self._apply_loaded_content(content, file_path)
-            filename = os.path.basename(file_path)
-            self.show_result_popup(tr.get('file_loaded', '✓ Loaded') + f':\n{filename}')
-        except Exception as e:
-            self.show_result_popup(tr.get('error_load', 'X Error') + f':\n{e}')
+
+        # Показываем индикатор загрузки
+        self.show_result_popup(f" Загрузка: {os.path.basename(file_path)}...")
+
+        def load_in_background():
+            try:
+                file_size = os.path.getsize(file_path)
+                if file_size > 1_000_000:  # > 1MB
+                    Clock.schedule_once(lambda dt: self.show_result_popup(
+                        f" Загрузка большого файла ({file_size // 1024} KB)...\nЭто может занять несколько секунд"))
+
+                content = self._read_file_content(file_path)
+                if content is None:
+                    Clock.schedule_once(lambda dt: self.show_result_popup(
+                        tr.get('encoding_error', 'X Cannot determine encoding')))
+                    return
+
+                # Загружаем в главном потоке
+                Clock.schedule_once(lambda dt: self._apply_loaded_content(content, file_path))
+
+                filename = os.path.basename(file_path)
+                Clock.schedule_once(lambda dt: self.show_result_popup(
+                    f"✓ {tr.get('file_loaded', 'Loaded')}: {filename}"))
+
+            except Exception as e:
+                error_msg = f"X {tr.get('error_load', 'Error')}: {str(e)[:100]}"
+                Clock.schedule_once(lambda dt: self.show_result_popup(error_msg))
+
+        threading.Thread(target=load_in_background, daemon=True).start()
 
     def _read_file_content(self, file_path):
         with open(file_path, 'rb') as f:

@@ -525,6 +525,24 @@ TRANSLATIONS = {
         'working_folder_selected': '✓ Рабочая папка выбрана',
         'working_folder_saved': '✓ Рабочая папка сохранена',
         'no_working_folder': ' Рабочая папка не выбрана',
+        # ========== НОВЫЕ КЛЮЧИ ДЛЯ ФАЙЛОВЫХ ОПЕРАЦИЙ ==========
+        'loading_file': 'Загрузка',
+        'saving_file': 'Сохранение',
+        'loading_cancelled': 'Загрузка отменена',
+        'save_cancelled': 'Сохранение отменено',
+        'cancelling': 'Отмена',
+        'loading_large_file': 'Загрузка большого файла',
+        'this_may_take_seconds': 'Это может занять несколько секунд',
+        'cancel_loading': 'Отменить загрузку',
+        'cancel_saving': 'Отменить сохранение',
+        'file_load_error': 'Ошибка загрузки',
+        'file_save_error': 'Ошибка сохранения',
+        'file_success_loaded': 'Загружено',
+        'file_success_saved': 'Сохранено',
+        'overwrite_prompt': 'Файл уже существует. Перезаписать?',
+        'overwrite_title': 'Подтверждение',
+        'overwrite_yes': 'Да, перезаписать',
+        'overwrite_no': 'Нет',
     },
     'en': {
         'no_code': 'No code to format',
@@ -686,6 +704,24 @@ TRANSLATIONS = {
         'working_folder_selected': '✓ Working folder selected',
         'working_folder_saved': '✓ Working folder saved',
         'no_working_folder': ' No working folder selected',
+        # ========== NEW KEYS FOR FILE OPERATIONS ==========
+        'loading_file': 'Loading',
+        'saving_file': 'Saving',
+        'loading_cancelled': 'Loading cancelled',
+        'save_cancelled': 'Save cancelled',
+        'cancelling': 'Cancelling',
+        'loading_large_file': 'Loading large file',
+        'this_may_take_seconds': 'This may take a few seconds',
+        'cancel_loading': 'Cancel loading',
+        'cancel_saving': 'Cancel saving',
+        'file_load_error': 'Load error',
+        'file_save_error': 'Save error',
+        'file_success_loaded': 'Loaded',
+        'file_success_saved': 'Saved',
+        'overwrite_prompt': 'File already exists. Overwrite?',
+        'overwrite_title': 'Confirm',
+        'overwrite_yes': 'Yes, overwrite',
+        'overwrite_no': 'No',
     },
 }
 
@@ -6897,15 +6933,15 @@ class PythonLearningApp(MDApp):
         self._file_operation_cancel = False
         self._current_file_operation = "save"
 
-        # Показываем индикатор (без эмодзи)
-        self.show_result_popup(f"[~] Saving: {filename}...")
+        # Показываем индикатор (с переводом)
+        self.show_result_popup(f"{tr.get('saving_file', 'Saving')}: {filename}...")
 
         def save_in_background():
             try:
                 # Проверяем отмену перед началом
                 if self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        "[i] Save cancelled"))
+                        tr.get('save_cancelled', 'Save cancelled')))
                     return
 
                 if not os.path.exists(path):
@@ -6916,7 +6952,7 @@ class PythonLearningApp(MDApp):
                     text = self.code_input.text
                     if len(text) > 100000:  # > 100KB
                         Clock.schedule_once(lambda dt: self.show_result_popup(
-                            f"[~] Saving large file ({len(text) // 1024} KB)..."))
+                            f"{tr.get('saving_file', 'Saving')} ({len(text) // 1024} KB)..."))
 
                     f.write(text)
 
@@ -6925,11 +6961,11 @@ class PythonLearningApp(MDApp):
             except PermissionError:
                 if not self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        f"[-] {tr.get('error_save', 'Error')}: {tr.get('no_permission', 'No permission')}"))
+                        f"[-] {tr.get('file_save_error', 'Save error')}: {tr.get('no_permission', 'No permission')}"))
             except Exception as e:
                 if not self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        f"[-] {tr.get('error_save', 'Error')}: {str(e)[:100]}"))
+                        f"[-] {tr.get('file_save_error', 'Save error')}: {str(e)[:100]}"))
             finally:
                 self._current_file_operation = None
 
@@ -6937,19 +6973,22 @@ class PythonLearningApp(MDApp):
 
     def cancel_file_operation(self):
         """Отменяет текущую файловую операцию"""
+        tr = self.tr
         if self._current_file_operation:
             self._file_operation_cancel = True
-            self.show_result_popup(f"[i] Cancelling {self._current_file_operation}...")
+            operation_name = "загрузка" if self._current_file_operation == "load" else "сохранение"
+            self.show_result_popup(f"[i] {tr.get('cancelling', 'Cancelling')} {operation_name}...")
 
     def _on_save_success(self, full_path, filename):
         """Обработчик успешного сохранения (главный поток)"""
+        tr = self.tr
         self._current_file = full_path
         self._has_unsaved_changes = False
         self._update_title_saved()
         self.tab_manager.set_active_file(full_path)
 
-        # Показываем успех без эмодзи
-        self.show_result_popup(f"[+] {self.tr.get('file_saved', 'Saved')}:\n{filename}")
+        # Показываем успех с переводом
+        self.show_result_popup(f"[+] {tr.get('file_success_saved', 'Saved')}:\n{filename}")
 
         # Восстанавливаем кнопку запуска
         self._restore_run_button()
@@ -7329,9 +7368,9 @@ class PythonLearningApp(MDApp):
         self._file_operation_cancel = False
         self._current_file_operation = "load"
 
-        # Показываем индикатор
+        # Показываем индикатор (с переводом)
         filename = os.path.basename(file_path)
-        self.show_result_popup(f"Loading: {filename}...")
+        self.show_result_popup(f"{tr.get('loading_file', 'Loading')}: {filename}...")
 
         def load_in_background():
             try:
@@ -7339,36 +7378,37 @@ class PythonLearningApp(MDApp):
 
                 if file_size > 1_000_000:  # > 1MB
                     Clock.schedule_once(lambda dt: self._show_loading_progress(
-                        f"Loading large file ({file_size // 1024} KB)...\nThis may take a few seconds",
+                        f"{tr.get('loading_large_file', 'Loading large file')} ({file_size // 1024} KB)...\n{tr.get('this_may_take_seconds', 'This may take a few seconds')}",
                         file_size
                     ))
 
+                # Проверяем, не отменена ли операция
                 if self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        "Loading cancelled"))
+                        tr.get('loading_cancelled', 'Loading cancelled')))
                     return
 
                 content = self._read_file_content(file_path)
                 if content is None:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        f"{tr.get('encoding_error', 'Cannot determine encoding')}"))
+                        f"[-] {tr.get('encoding_error', 'Cannot determine encoding')}"))
                     return
 
+                # Проверяем ещё раз перед загрузкой
                 if self._file_operation_cancel:
                     Clock.schedule_once(lambda dt: self.show_result_popup(
-                        "Loading cancelled"))
+                        tr.get('loading_cancelled', 'Loading cancelled')))
                     return
 
+                # Загружаем в главном потоке
                 Clock.schedule_once(lambda dt: self._apply_loaded_content(content, file_path))
 
-                # Используем ✓ который работает
                 Clock.schedule_once(lambda dt: self.show_result_popup(
-                    f"✓ {tr.get('file_loaded', 'Loaded')}: {filename}"))
+                    f"[+] {tr.get('file_success_loaded', 'Loaded')}: {filename}"))
 
             except Exception as e:
                 if not self._file_operation_cancel:
-                    # Используем ✕ который работает
-                    error_msg = f"✕ {tr.get('error_load', 'Error')}: {str(e)[:100]}"
+                    error_msg = f"[-] {tr.get('file_load_error', 'Load error')}: {str(e)[:100]}"
                     Clock.schedule_once(lambda dt: self.show_result_popup(error_msg))
             finally:
                 self._current_file_operation = None
@@ -7544,21 +7584,42 @@ class PythonLearningApp(MDApp):
         tr = self.tr
         theme = ThemeManager.get_theme()
         filename = os.path.basename(full_path)
+
         content = BoxLayout(orientation='vertical', padding=dp(7), spacing=dp(5))
         content.add_widget(Label(
-            text=f"{tr.get('file_exists', 'File')} '{filename}' {tr.get('already_exists', 'exists')}.\n{tr.get('overwrite_confirm', 'Overwrite?')}",
-            color=theme['text_color'], font_size=dp(11), font_name='SourceBold', halign='center', size_hint_y=None,
-            height=dp(27)))
+            text=f"{tr.get('file_exists', 'File')} '{filename}' {tr.get('already_exists', 'exists')}.\n{tr.get('overwrite_prompt', 'Overwrite?')}",
+            color=theme['text_color'], font_size=dp(11), font_name='SourceBold',
+            halign='center', size_hint_y=None, height=dp(27)))
+
+
         btn_layout = BoxLayout(size_hint_y=None, height=dp(23), spacing=dp(4))
-        popup = Popup(title=tr.get('confirm_title', 'Confirm'), title_color=theme['popup_title'], background='',
-                      background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)), content=content,
-                      size_hint=(0.8, 0.35), auto_dismiss=False)
-        btn_yes = Button(text=tr.get('yes', 'Yes'), font_name='SourceBold', background_color=(0.2, 0.5, 0.2, 1),
-                         background_normal='', background_down='', color=theme['text_color'], font_size=dp(10),
-                         on_release=lambda x: self._on_overwrite_confirm(popup, full_path, filename))
-        btn_no = Button(text=tr.get('no', 'No'), font_name='SourceBold', background_color=theme['widget_bg'],
-                        background_normal='', background_down='', color=theme['text_color'], font_size=dp(10),
-                        on_release=lambda x: popup.dismiss())
+
+        popup = Popup(
+            title=tr.get('overwrite_title', 'Confirm'),
+            title_color=theme['popup_title'],
+            background='',
+            background_color=theme.get('popup_bg', (1.0, 1.0, 1.0, 1)),
+            content=content,
+            size_hint=(0.8, 0.35),
+            auto_dismiss=False
+        )
+
+        btn_yes = Button(
+            text=tr.get('overwrite_yes', 'Yes'),
+            font_name='SourceBold',
+            background_color=theme.get('btn_success_bg', (0.2, 0.5, 0.2, 1)),
+            background_normal='', background_down='',
+            color=theme['text_color'], font_size=dp(10),
+            on_release=lambda x: self._on_overwrite_confirm(popup, full_path, filename))
+
+        btn_no = Button(
+            text=tr.get('overwrite_no', 'No'),
+            font_name='SourceBold',
+            background_color=theme['widget_bg'],
+            background_normal='', background_down='',
+            color=theme['text_color'], font_size=dp(10),
+            on_release=lambda x: popup.dismiss())
+
         btn_layout.add_widget(btn_yes)
         btn_layout.add_widget(btn_no)
         content.add_widget(btn_layout)

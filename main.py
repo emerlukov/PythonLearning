@@ -7141,9 +7141,9 @@ class PythonLearningApp(MDApp):
         try:
             from jnius import autoclass
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-
+    
             content_resolver = PythonActivity.mActivity.getContentResolver()
-
+    
             # Получаем имя файла
             cursor = content_resolver.query(uri, None, None, None, None)
             filename = "unknown.py"
@@ -7153,42 +7153,26 @@ class PythonLearningApp(MDApp):
                 if name_index != -1:
                     filename = cursor.getString(name_index) or "unknown.py"
                 cursor.close()
-
-            # Сообщение о начале загрузки (ОБЯЗАТЕЛЬНО через Clock)
-            Clock.schedule_once(lambda dt: self.show_result_popup(f"Loading: {filename}..."), 0)
-
-            # Читаем содержимое в фоновом потоке
-            def read_content():
-                try:
-                    input_stream = content_resolver.openInputStream(uri)
-                    byte_array = bytearray()
-                    buffer = bytearray(8192)
-                    while True:
-                        length = input_stream.read(buffer)
-                        if length == -1:
-                            break
-                        byte_array.extend(buffer[:length])
-
-                    text = byte_array.decode('utf-8', errors='replace')
-
-                    # Проверяем размер файла (для большого файла)
-                    if len(byte_array) > 1_000_000:
-                        Clock.schedule_once(lambda dt: self.show_result_popup(
-                            f"Loading large file ({len(byte_array) // 1024} KB)...\nThis may take a few seconds"), 0)
-
-                    # Загружаем в редактор
-                    Clock.schedule_once(lambda dt: self._load_file_into_editor(filename, text), 0)
-
-                except Exception as e:
-                    log_error(f"read_content error: {e}")
-                    Clock.schedule_once(lambda dt: self.show_result_popup(f"[-] Cannot read file:\n{str(e)[:200]}"), 0)
-
-            # Запускаем чтение в отдельном потоке
-            threading.Thread(target=read_content, daemon=True).start()
-
+    
+            # Читаем содержимое
+            input_stream = content_resolver.openInputStream(uri)
+            byte_array = bytearray()
+            buffer = bytearray(8192)
+            while True:
+                length = input_stream.read(buffer)
+                if length == -1:
+                    break
+                byte_array.extend(buffer[:length])
+    
+            text = byte_array.decode('utf-8', errors='replace')
+    
+            # Загружаем в редактор (главный поток) - без промежуточных сообщений
+            Clock.schedule_once(lambda dt: self._load_file_into_editor(filename, text), 0)
+    
         except Exception as e:
             log_error(f"_read_file_from_uri error: {e}")
-            Clock.schedule_once(lambda dt: self.show_result_popup(f"[-] Cannot open file:\n{str(e)[:200]}"), 0)
+            # Только сообщение об ошибке
+            Clock.schedule_once(lambda dt: self.show_result_popup(f"[-] Cannot read file:\n{str(e)[:200]}"), 0)
 
     def _load_file_into_editor(self, filename, content):
         """Безопасная загрузка файла в редактор (выполняется в главном потоке)"""
@@ -7201,20 +7185,21 @@ class PythonLearningApp(MDApp):
                 if hasattr(self, 'editor') and self.editor:
                     self.editor.original_lines = (content or "").split('\n')
                     self.editor._update_line_panel()
-
+    
             self._current_file = filename
             self._has_unsaved_changes = False
             self._update_title_saved()
-
-            # Финальное сообщение об успехе
-            self.show_result_popup(f"[+] Loaded: {filename}")
-
+    
+            # БЕЗ СООБЩЕНИЙ - просто загружаем файл
+            # self.show_result_popup(...) - убрали
+    
             # Восстанавливаем кнопку запуска
             self._restore_run_button()
-
+    
         except Exception as e:
             log_error(f"_load_file_into_editor error: {e}")
-            self.show_result_popup(f"[-] Error opening file in editor")
+            # Только ошибку показываем
+            self.show_result_popup(f"[-] Error opening file: {str(e)[:100]}")
 
     def _save_file_to_uri(self, uri):
         """Сохранение файла"""

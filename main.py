@@ -553,6 +553,17 @@ TRANSLATIONS = {
         'overwrite_title': 'Подтверждение',
         'overwrite_yes': 'Да, перезаписать',
         'overwrite_no': 'Нет',
+        # НОВЫЕ КЛЮЧИ ДЛЯ СОХРАНЕНИЯ ФАЙЛОВ
+        'save_file_hint': 'В системном диалоге укажите имя файла с расширением:',
+        'save_python_example': '• script.py — для Python',
+        'save_text_example': '• data.txt — для текста',
+        'save_json_example': '• config.json — для JSON',
+        'save_example_hint': 'Пример: my_code.py',
+        'save_tip_title': 'Подсказка',
+        'save_understand_btn': 'Понятно, продолжить',
+        'file_saved_no_extension': '! Файл сохранён без расширения: {}\nПереименуйте его в файловом менеджере, добавив .py',
+        'file_saved_with_extension': '✓ {}',
+        'file_save_no_extension_warning': 'Добавьте расширение к имени файла\n(например: .py, .txt, .json)',
     },
     'en': {
         'no_code': 'No code to format',
@@ -732,6 +743,17 @@ TRANSLATIONS = {
         'overwrite_title': 'Confirm',
         'overwrite_yes': 'Yes, overwrite',
         'overwrite_no': 'No',
+        # NEW KEYS FOR FILE SAVING
+        'save_file_hint': 'In the system dialog, specify the filename with extension:',
+        'save_python_example': '• script.py — for Python',
+        'save_text_example': '• data.txt — for text',
+        'save_json_example': '• config.json — for JSON',
+        'save_example_hint': 'Example: my_code.py',
+        'save_tip_title': 'Tip',
+        'save_understand_btn': 'Got it, continue',
+        'file_saved_no_extension': '! File saved without extension: {}\nRename it in file manager, add .py',
+        'file_saved_with_extension': '✓ {}',
+        'file_save_no_extension_warning': 'Add extension to filename\n(e.g.: .py, .txt, .json)',
     },
 }
 
@@ -7018,7 +7040,7 @@ class PythonLearningApp(MDApp):
             self._show_legacy_file_dialog(is_save=False)
 
     def show_save_dialog(self, instance=None):
-        """Открывает системный диалог сохранения файла с правильным расширением"""
+        """Открывает системный диалог сохранения файла"""
         if platform != 'android':
             self.show_result_popup("Эта функция доступна только на Android")
             return
@@ -7027,35 +7049,62 @@ class PythonLearningApp(MDApp):
             self.show_result_popup("JNIUS не доступен")
             return
 
-        try:
-            from jnius import autoclass, cast
+        #  ПОКАЗЫВАЕМ ПОНЯТНУЮ ПОДСКАЗКУ
+        theme = ThemeManager.get_theme()
+        tr = self.tr
 
-            PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            Intent = autoclass('android.content.Intent')
+        content = BoxLayout(orientation='vertical', padding=dp(12), spacing=dp(8))
 
-            intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
-            intent.addCategory(Intent.CATEGORY_OPENABLE)
-            intent.setType("*/*")
+        message = f"""[b]{tr.get('save_tip_title', 'Tip')}[/b]
 
-            # ⭐ ФОРМИРУЕМ ПРАВИЛЬНОЕ ИМЯ С РАСШИРЕНИЕМ
-            suggested_name = "script.py"
-            if self._current_file and isinstance(self._current_file, str):
-                filename = os.path.basename(self._current_file)
-                if filename:
-                    # Если нет расширения - добавляем .py
-                    if '.' not in filename:
-                        suggested_name = filename + '.py'
-                    else:
-                        suggested_name = filename
+    {tr.get('save_file_hint', 'Specify filename with extension:')}
+    {tr.get('save_python_example', '• script.py — for Python')}
+    {tr.get('save_text_example', '• data.txt — for text')}
+    {tr.get('save_json_example', '• config.json — for JSON')}
 
-            intent.putExtra(Intent.EXTRA_TITLE, suggested_name)
+    [i]{tr.get('save_example_hint', 'Example: my_code.py')}[/i]"""
 
-            current_activity = cast('android.app.Activity', PythonActivity.mActivity)
-            current_activity.startActivityForResult(intent, 1002)
+        info_label = Label(
+            text=message,
+            markup=True,
+            color=theme['text_color'],
+            font_size=dp(11),
+            font_name='SourceBold',
+            halign='left',
+            valign='top',
+            size_hint_y=None,
+            height=dp(140)
+        )
+        info_label.bind(width=lambda inst, val: setattr(inst, 'text_size', (val - dp(10), None)))
+        content.add_widget(info_label)
 
-        except Exception as e:
-            log_error(f"Save dialog error: {e}")
-            self.show_result_popup(f"Ошибка открытия диалога сохранения:\n{str(e)}")
+        btn_layout = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(8))
+
+        popup = Popup(
+            title=tr.get('save_tip_title', 'Tip'),
+            title_color=theme['popup_title'],
+            background='',
+            background_color=theme.get('popup_bg', (1, 1, 1, 1)),
+            content=content,
+            size_hint=(0.85, 0.45),
+            auto_dismiss=True
+        )
+
+        btn_ok = Button(
+            text=tr.get('save_understand_btn', 'Got it, continue'),
+            font_name='SourceBold',
+            background_color=(0.2, 0.5, 0.2, 1),
+            background_normal='',
+            background_down='',
+            color=(1, 1, 1, 1),
+            font_size=dp(12),
+            on_release=lambda x: self._open_saf_dialog(popup)
+        )
+
+        btn_layout.add_widget(btn_ok)
+        content.add_widget(btn_layout)
+
+        popup.open()
 
     def _show_filename_input_dialog(self):
         """Показывает диалог ввода имени файла перед сохранением"""
@@ -7121,7 +7170,7 @@ class PythonLearningApp(MDApp):
             for char in invalid_chars:
                 name = name.replace(char, '_')
 
-            # ⭐ ДОБАВЛЯЕМ .py ТОЛЬКО ЕСЛИ НЕТ РАСШИРЕНИЯ
+            #  ДОБАВЛЯЕМ .py ТОЛЬКО ЕСЛИ НЕТ РАСШИРЕНИЯ
             if '.' not in name:
                 name += '.py'
 
@@ -7278,11 +7327,10 @@ class PythonLearningApp(MDApp):
             return
 
         try:
-            from jnius import autoclass, cast
+            from jnius import autoclass
 
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
 
-            # Получаем имя файла из URI
             content_resolver = PythonActivity.mActivity.getContentResolver()
             cursor = content_resolver.query(uri, None, None, None, None)
             filename = "script.py"
@@ -7294,12 +7342,7 @@ class PythonLearningApp(MDApp):
                     filename = cursor.getString(name_index)
                 cursor.close()
 
-            # ⭐ ПРОВЕРКА: если пользователь удалил расширение - просим сохранить заново
-            if '.' not in filename:
-                self.show_result_popup("! Добавьте расширение к имени файла\n(например: .py, .txt, .json)")
-                return
-
-            # Сохраняем
+            # Сохраняем содержимое
             output_stream = content_resolver.openOutputStream(uri)
             text_bytes = self.code_input.text.encode('utf-8')
             output_stream.write(text_bytes)
@@ -7313,13 +7356,24 @@ class PythonLearningApp(MDApp):
                 self.tab_manager.set_active_file(filename)
                 self.tab_manager.set_active_title(filename)
 
-            short_name = filename if len(filename) < 30 else filename[:27] + "..."
-            self.show_result_popup(f"✓ {short_name}")
+            #  ПРОВЕРКА РАСШИРЕНИЯ С ЛОКАЛИЗАЦИЕЙ
+            tr = self.tr
+            if '.' not in filename:
+                # Показываем предупреждение
+                msg = tr.get('file_saved_no_extension',
+                             '! File saved without extension: {}\nRename it in file manager, add .py')
+                self.show_result_popup(msg.format(filename))
+            else:
+                short_name = filename if len(filename) < 30 else filename[:27] + "..."
+                msg = tr.get('file_saved_with_extension', '✓ {}')
+                self.show_result_popup(msg.format(short_name))
+
             self._restore_run_button()
 
         except Exception as e:
             log_error(f"_save_file_to_uri error: {e}")
-            self.show_result_popup(f"✕ Ошибка сохранения:\n{str(e)[:150]}")
+            tr = self.tr
+            self.show_result_popup(f"✕ {tr.get('file_save_error', 'Save error')}:\n{str(e)[:150]}")
 
     def _create_new_tab(self, filename, content):
         """Создаёт новую вкладку и загружает в неё файл"""

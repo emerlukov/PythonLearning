@@ -3,6 +3,7 @@
 Manager modules for the Python Learning IDE
 """
 from .autocomplete import AutoCompleteWidget
+from .ime_support import KeyboardSupport, IMETextHandler
 from .executor import CodeExecutor
 from .tab_manager import TabManager
 from .input_handler import InputHandler
@@ -12,6 +13,8 @@ from .examples_manager import examples_manager, ExamplesManager
 
 __all__ = [
     'AutoCompleteWidget',
+    'KeyboardSupport',
+    'IMETextHandler',
     'CodeExecutor',
     'TabManager',
     'InputHandler',

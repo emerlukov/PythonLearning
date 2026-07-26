@@ -21,6 +21,7 @@ from kivy.metrics import dp
 from kivy.app import App
 from kivy.core.clipboard import Clipboard
 from kivy.core.window import Window
+from kivy.utils import platform
 
 from ide_core.themes import ThemeManager
 from ide_core.lessons import LessonManager
@@ -274,6 +275,52 @@ class LessonView(BoxLayout):
         header_layout.add_widget(close_btn)
         self.add_widget(header_layout)
 
+        # ========== ПАНЕЛЬ СТАТИСТИКИ (XP, STREAK) ==========
+        stats_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(30), spacing=dp(10))
+
+        total_xp = self.lesson_manager.get_total_xp()
+        streak_days = self.lesson_manager.get_streak_days()
+
+        self.xp_label = Label(
+            text=f"★ {total_xp} XP",
+            font_size=dp(12),
+            font_name='DejaVuSans',
+            color=theme.get('stats_text', (0.6, 0.63, 0.65, 1)),
+            size_hint_x=0.5,
+            halign='left'
+        )
+        self.xp_label.bind(width=lambda inst, val: setattr(inst, 'text_size', (val, None)))
+
+        self.streak_label = Label(
+            text=f"▲ {streak_days} {self.app.tr.get('streak_days', 'Day streak: {}').format(streak_days)}",
+            font_size=dp(12),
+            font_name='DejaVuSans',
+            color=theme.get('stats_text', (0.6, 0.63, 0.65, 1)),
+            size_hint_x=0.5,
+            halign='right'
+        )
+        self.streak_label.bind(width=lambda inst, val: setattr(inst, 'text_size', (val, None)))
+
+        stats_layout.add_widget(self.xp_label)
+        stats_layout.add_widget(self.streak_label)
+        self.add_widget(stats_layout)
+
+        # ========== ПАНЕЛЬ БЕЙДЖЕЙ ==========
+        badges_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(25), spacing=dp(5))
+
+        self.badges_label = Label(
+            text=self._get_badges_text(),
+            font_size=dp(10),
+            font_name='DejaVuSans',
+            color=theme.get('stats_text', (0.6, 0.63, 0.65, 1)),
+            size_hint_x=1,
+            halign='left'
+        )
+        self.badges_label.bind(width=lambda inst, val: setattr(inst, 'text_size', (val, None)))
+
+        badges_layout.add_widget(self.badges_label)
+        self.add_widget(badges_layout)
+
         # ========== ТАБЫ ==========
         self.tab_panel = TabbedPanel(
             size_hint=(1, 1),
@@ -342,13 +389,15 @@ class LessonView(BoxLayout):
         is_practice_done = self.lesson_manager.is_practice_completed(lesson_id)
 
         # Индикатор прогресса практики
-        self.progress_label = Label(
+        self.progress_label = Button(
             text=self._get_progress_text(lesson_id),
             font_size=dp(10),
             font_name='DejaVuSans',
+            background_color=theme.get('widget_bg', (0.141, 0.145, 0.149, 1)),
+            background_normal='', background_down='',
             color=theme.get('stats_text', (0.6, 0.63, 0.65, 1)),
             size_hint_x=0.15,
-            halign='center'
+            disabled=True
         )
 
         self.complete_btn = Button(
@@ -399,6 +448,43 @@ class LessonView(BoxLayout):
             return "✓ " + base_text
         return base_text
 
+    def _get_badges_text(self) -> str:
+        """Возвращает текст с бейджами пользователя"""
+        badges = self.lesson_manager.get_badges()
+        if not badges:
+            return ""
+
+        badge_symbols = {
+            'first_try': '☺',
+            'week_streak': '☻',
+            'month_streak': '☯',
+            'ten_lessons': '☮',
+            'course_complete': '★',
+        }
+
+        badge_names = []
+        for badge_id in badges:
+            badge_key = f'badge_{badge_id}'
+            badge_name = self.app.tr.get(badge_key, badge_id)
+            symbol = badge_symbols.get(badge_id, '☺')
+            # Увеличиваем смайлик до 16px
+            badge_names.append(f"{symbol} {badge_name}")
+
+        return "  ".join(badge_names[:5])
+
+    def _update_stats_display(self):
+        """Обновляет отображение статистики (XP, streak, badges)"""
+        if hasattr(self, 'xp_label'):
+            total_xp = self.lesson_manager.get_total_xp()
+            self.xp_label.text = f"★ {total_xp} XP"
+
+        if hasattr(self, 'streak_label'):
+            streak_days = self.lesson_manager.get_streak_days()
+            self.streak_label.text = f"▲ {streak_days} {self.app.tr.get('streak_days', 'Day streak: {}').format(streak_days)}"
+
+        if hasattr(self, 'badges_label'):
+            self.badges_label.text = self._get_badges_text()
+
     def _update_progress_indicator(self):
         """Обновляет индикатор прогресса практики"""
         if hasattr(self, 'progress_label'):
@@ -422,10 +508,10 @@ class LessonView(BoxLayout):
         self._tabs_built.add(tab_key)
 
         builders = {
-            'theory':   self._create_theory_tab,
-            'task':     self._create_task_tab,
+            'theory': self._create_theory_tab,
+            'task': self._create_task_tab,
             'practice': self._create_practice_tab,
-            'hint':     self._create_hint_tab,
+            'hint': self._create_hint_tab,
         }
         builder = builders.get(tab_key)
         if builder:
@@ -442,15 +528,65 @@ class LessonView(BoxLayout):
 
         # Определяем ключ выбранной вкладки
         tab_map = {
-            id(self.theory_tab):   'theory',
-            id(self.task_tab):     'task',
+            id(self.theory_tab): 'theory',
+            id(self.task_tab): 'task',
             id(self.practice_tab): 'practice',
-            id(self.hint_tab):     'hint',
+            id(self.hint_tab): 'hint',
         }
         key = tab_map.get(id(value))
+
+        is_practice = (key == 'practice')
+
         if key and key not in self._tabs_built:
             # Строим в следующем кадре — UI успевает перерисоваться
-            Clock.schedule_once(lambda dt: self._build_tab(key), 0)
+            if is_practice:
+                # После постройки вкладки дополнительно обновляем symbol_bar
+                def _build_then_update(dt):
+                    self._build_tab(key)
+                    Clock.schedule_once(lambda dt2: self._update_symbol_bar_for_practice(), 0.05)
+
+                Clock.schedule_once(_build_then_update, 0)
+            else:
+                Clock.schedule_once(lambda dt: self._build_tab(key), 0)
+        elif is_practice:
+            # Вкладка уже построена — просто обновляем symbol_bar
+            Clock.schedule_once(lambda dt: self._update_symbol_bar_for_practice(), 0.05)
+
+        # Восстанавливаем symbol_bar на основной редактор при уходе с practice
+        if not is_practice and hasattr(self, 'app') and hasattr(self.app, 'symbol_bar') and hasattr(self.app,
+                                                                                                    'code_input'):
+            self.app.symbol_bar.text_input = self.app.code_input
+            # Возвращаем стабильный режим softinput_mode для главного редактора (не поднимает окно)
+            if platform == 'android':
+                Window.softinput_mode = 'below_target'
+
+    def _update_symbol_bar_for_practice(self):
+        """Перенаправляет symbol_bar на редактор вкладки Практика."""
+        if not (hasattr(self, 'app') and hasattr(self.app, 'symbol_bar')):
+            return
+        if not hasattr(self, 'practice_editor'):
+            return
+        editor = self.practice_editor
+        # InteractiveCodeWidget хранит реальный TextInput в .text_input
+        target = getattr(editor, 'text_input', editor)
+        self.app.symbol_bar.text_input = target
+        # Фокус — только если виджет уже в дереве и видим
+        try:
+            if target and target.parent:
+                target.focus = True
+        except Exception:
+            pass
+
+        # ИСПРАВЛЕНИЕ: Для practice-вкладки отключаем поднимание окна
+        # Вместо этого добавляем пусто место в конце контента,
+        # чтобы ScrollView мог скроллить поле ввода над клавиатурой
+        if platform == 'android':
+            # Оставляем режим, предотвращающий поднимание окна — spacer добавляет отступ
+            Window.softinput_mode = 'below_target'
+
+        # Обновляем позицию symbol_bar для practice-вкладки
+        if hasattr(self, 'app') and hasattr(self.app, '_symbol_bar_update_fn'):
+            self.app._symbol_bar_update_fn()
 
     # ------------------------------------------------------------------
     # Навигация между уроками
@@ -558,6 +694,12 @@ class LessonView(BoxLayout):
             if placeholder.parent:
                 placeholder.parent.remove_widget(placeholder)
             parent.add_widget(new_view)
+
+            # Поднимаем symbol_bar наверх чтобы он был поверх окна урока
+            if hasattr(self.app, 'symbol_bar') and self.app.symbol_bar:
+                if hasattr(self.app, 'root_layout') and self.app.root_layout:
+                    self.app.root_layout.remove_widget(self.app.symbol_bar)
+                    self.app.root_layout.add_widget(self.app.symbol_bar)
 
         Clock.schedule_once(_do_create, 0)
 
@@ -752,14 +894,108 @@ class LessonView(BoxLayout):
 
             self.practice_tab.add_widget(self.practice_editor)
 
-        # Привязываем слушатель изменений.
-        # InteractiveCodeWidget не имеет свойства 'text' — биндим только CodeInput.
-        # Для InteractiveCodeWidget изменения кода отслеживаются через _update_code_from_editor.
-        if not template and hasattr(self.practice_editor, 'bind'):
+    def _add_trailing_lines(self):
+        """Добавляет пустые строки в конец текста для видимости над клавиатурой"""
+        try:
+            if hasattr(self, 'practice_editor'):
+                if hasattr(self.practice_editor, 'text_input'):
+                    # InteractiveCodeWidget
+                    current_text = self.practice_editor.text_input.text
+                    self.practice_editor.text_input.text = current_text.rstrip('\n') + '\n' * 50
+                else:
+                    # CodeInput
+                    current_text = self.practice_editor.text
+                    self.practice_editor.text = current_text.rstrip('\n') + '\n' * 50
+        except Exception as e:
+            pass
+
+    def _add_keyboard_spacing(self):
+        """Добавляет дополнительное пусто место в конец для клавиатуры + панели символов"""
+        try:
+            if not hasattr(self, 'practice_editor'):
+                return
+            # Попытка получить реальную высоту клавиатуры (если есть трекер)
+            kb_h = 0
             try:
-                self.practice_editor.bind(text=self._on_code_change)
-            except (KeyError, Exception):
+                if platform == 'android' and hasattr(self.app, '_keyboard_tracker') and self.app._keyboard_tracker:
+                    kb_h = int(self.app._keyboard_tracker.get_keyboard_height() or 0)
+            except Exception:
+                kb_h = 0
+
+            # Фоллбэк: примерный расчет высоты на основе высоты окна
+            if not kb_h:
+                kb_h = int(Window.height * 0.45)  # 45% от высоты экрана
+
+            symbol_bar_height = dp(45)  # примерная высота панели
+            total_spacing = int(kb_h + symbol_bar_height)
+
+            # Если practice_editor — InteractiveCodeWidget (есть main_container + scroll)
+            pe = self.practice_editor
+            # Защита от повторного добавления spacer'а
+            try:
+                if hasattr(pe, '_kb_spacer_added') and pe._kb_spacer_added:
+                    return
+            except Exception:
                 pass
+
+            # Если это виджет с main_container (InteractiveCodeWidget)
+            if hasattr(pe, 'main_container') and hasattr(pe, 'scroll'):
+                # Добавим пустой Label фиксированной высоты в конец main_container
+                from kivy.uix.label import Label as KivyLabel
+                spacer = KivyLabel(size_hint_y=None, height=total_spacing)
+
+                # Если уже есть spacer — удалим его (может быть вставлен не в конце) чтобы потом добавить в конец
+                try:
+                    existing = getattr(pe, '_kb_spacer_widget', None)
+                    if existing is not None:
+                        if getattr(existing, 'parent', None) is pe.main_container:
+                            # если existing уже последний — ничего не делаем
+                            if pe.main_container.children and pe.main_container.children[0] is existing:
+                                return
+                            try:
+                                existing.parent.remove_widget(existing)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+                # Пометим spacer чтобы не добавлять ещё раз
+                try:
+                    pe._kb_spacer_widget = spacer
+                    pe._kb_spacer_added = True
+                except Exception:
+                    pass
+
+                # Добавляем spacer в конец контейнера (add_widget без индекса добавляет в конец)
+                try:
+                    pe.main_container.add_widget(spacer)
+                except Exception:
+                    try:
+                        pe.main_container.add_widget(spacer)
+                    except Exception:
+                        pass
+
+                # Обновим минимальную высоту контейнера: увеличиваем на total_spacing
+                try:
+                    pe.main_container.height = pe.main_container.height + total_spacing
+                except Exception:
+                    pass
+                return
+
+            # Если это CodeInput / TextInput — добавляем пустые строки в текст
+            additional_lines = 100
+            if hasattr(pe, 'text_input') and hasattr(pe.text_input, 'text'):
+                current_text = pe.text_input.text
+                if not getattr(pe, '_kb_trailing_added', False):
+                    pe.text_input.text = current_text + '\n' * additional_lines
+                    pe._kb_trailing_added = True
+            elif hasattr(pe, 'text'):
+                current_text = pe.text
+                if not getattr(pe, '_kb_trailing_added', False):
+                    pe.text = current_text + '\n' * additional_lines
+                    pe._kb_trailing_added = True
+        except Exception as e:
+            pass
 
     def _create_task_tab(self):
         """Создаёт содержимое вкладки Задание"""
@@ -1039,6 +1275,7 @@ class LessonView(BoxLayout):
                     self.lesson_manager.increment_attempts(self.lesson.get('id', 0))
                     self.lesson_manager.increment_successful_runs(self.lesson.get('id', 0))
                     self._update_progress_indicator()
+                    self._update_stats_display()
 
             self.app.code_executor.run(
                 self.user_code,
@@ -1133,6 +1370,7 @@ class LessonView(BoxLayout):
         old_badges = set(self.lesson_manager.get_badges())
         self.lesson_manager.check_and_award_badges(lesson_id, attempts)
         new_badges = set(self.lesson_manager.get_badges())
+        earned_badges = list(new_badges - old_badges)  # <-- ЭТА СТРОКА ОБЯЗАТЕЛЬНА!
 
         success = self.lesson_manager.mark_lesson_completed(lesson_id, self.course_id, self.user_code)
 
@@ -1142,26 +1380,113 @@ class LessonView(BoxLayout):
             theme = ThemeManager.get_theme()
             self.complete_btn.background_color = theme.get('stats_text', (0.6, 0.63, 0.65, 1))
 
+            # Обновляем отображение статистики
+            self._update_stats_display()
+
+            # Показываем уведомление о новых бейджах
+            if earned_badges:  # <-- ТЕПЕРЬ earned_badges СУЩЕСТВУЕТ
+                self._show_badge_earned_popup(earned_badges)
+
             # Показываем сообщение о завершении урока
             xp = self.lesson.get('xp', 10)
             message = f"{self.app.tr.get('lesson_completed', 'Lesson completed!')} +{xp} XP"
-
-            # Добавляем информацию о новых бейджах
-            earned_badges = new_badges - old_badges
-            if earned_badges:
-                badge_names = []
-                for badge_id in earned_badges:
-                    badge_key = f'badge_{badge_id}'
-                    badge_name = self.app.tr.get(badge_key, badge_id)
-                    badge_names.append(badge_name)
-                message += f"\n🏆 {', '.join(badge_names)}"
-
             self.app.show_result_popup(message)
             self._offer_next_lesson()
         else:
             self.app.show_result_popup(
                 self.app.tr.get('already_completed', 'Lesson already completed')
             )
+
+    def _show_badge_earned_popup(self, earned_badges):
+        """Показывает уведомление о получении новых бейджей"""
+        theme = ThemeManager.get_theme()
+        tr = self.app.tr
+
+        content = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
+
+        # Заголовок с увеличенным смайликом
+        title_label = Label(
+            text="< BADGE EARNED! >",
+            markup=True,
+            font_size=dp(18),
+            font_name='DejaVuSans',
+            color=theme.get('btn_success_bg', (0.2, 0.5, 0.2, 1)),
+            halign='center',
+            size_hint_y=None,
+            height=dp(50)
+        )
+        title_label.bind(width=lambda inst, val: setattr(inst, 'text_size', (val, None)))
+        content.add_widget(title_label)
+
+        # Разделитель
+        sep = Label(
+            text="-" * 50,
+            font_size=dp(8),
+            color=theme.get('stats_text', (0.6, 0.63, 0.65, 1)),
+            size_hint_y=None,
+            height=dp(10)
+        )
+        content.add_widget(sep)
+
+        # Список бейджей с увеличенным смайликом
+        badge_symbols = {
+            'first_try': '☺',
+            'week_streak': '☻',
+            'month_streak': '☯',
+            'ten_lessons': '☮',
+            'course_complete': '★',
+        }
+
+        for badge_id in earned_badges:
+            badge_key = f'badge_{badge_id}'
+            badge_name = self.app.tr.get(badge_key, badge_id)
+            symbol = badge_symbols.get(badge_id, '☺')
+
+            badge_label = Label(
+                text=f"[size=70]{symbol}[/size] {badge_name}",
+                markup=True,
+                font_size=dp(14),
+                font_name='DejaVuSans',
+                color=theme['text_color'],
+                halign='center',
+                size_hint_y=None,
+                height=dp(40)
+            )
+            badge_label.bind(width=lambda inst, val: setattr(inst, 'text_size', (val, None)))
+            content.add_widget(badge_label)
+
+        # Кнопка закрытия
+        close_btn = Button(
+            text=tr.get('ok', 'OK'),
+            font_name='SourceBold',
+            size_hint_y=None,
+            height=dp(40),
+            background_color=theme.get('btn_success_bg', (0.2, 0.5, 0.2, 1)),
+            background_normal='', background_down='',
+            color=(1, 1, 1, 1),
+            font_size=dp(14)
+        )
+
+        def on_close(btn):
+            popup.dismiss()
+
+        close_btn.bind(on_release=on_close)
+        content.add_widget(close_btn)
+
+        popup = ThemedPopup(
+            title="",
+            title_color=theme.get('popup_title', theme['text_color']),
+            title_bg=theme.get('popup_title_bg', theme['widget_bg']),
+            popup_bg=theme.get('popup_bg', theme.get('widget_bg', (0.188, 0.204, 0.251, 1))),
+            separator_color=theme.get('popup_separator', (0.25, 0.25, 0.25, 1)),
+            content=content,
+            size_hint=(0.7, 0.5),
+            auto_dismiss=False
+        )
+        popup.open()
+
+        # Вибрация при получении бейджа
+        VibrationManager.vibrate(0.05)
 
     def _offer_next_lesson(self):
         theme = ThemeManager.get_theme()
@@ -1240,6 +1565,12 @@ class LessonView(BoxLayout):
         if hasattr(self.app, 'root_layout'):
             self.app.root_layout.add_widget(new_view)
 
+        # Поднимаем symbol_bar наверх чтобы он был поверх окна урока
+        if hasattr(self.app, 'symbol_bar') and self.app.symbol_bar:
+            if hasattr(self.app, 'root_layout') and self.app.root_layout:
+                self.app.root_layout.remove_widget(self.app.symbol_bar)
+                self.app.root_layout.add_widget(self.app.symbol_bar)
+
     # ------------------------------------------------------------------
     # Клавиатура / окно
     # ------------------------------------------------------------------
@@ -1287,6 +1618,15 @@ class LessonView(BoxLayout):
             self._save_event.cancel()
             self._save_event = None
         Window.unbind(on_resize=self._on_window_resize)
+
+        # Восстанавливаем symbol_bar на основной редактор
+        if hasattr(self, 'app') and hasattr(self.app, 'symbol_bar') and hasattr(self.app, 'code_input'):
+            self.app.symbol_bar.text_input = self.app.code_input
+
+        # Возвращаем стабильный режим softinput_mode для главного редактора (не поднимает окно)
+        if platform == 'android':
+            Window.softinput_mode = 'below_target'
+
         if self.parent:
             self.parent.remove_widget(self)
 

@@ -1,6 +1,6 @@
 # ui/menus.py
 """
-Menu components: Language, Theme, Editor Settings, Syntax Highlight
+Menu components: Language, Theme, Editor Settings, Syntax Highlight, Learning
 """
 import os
 import time
@@ -95,9 +95,6 @@ class LanguageSelectMenu:
         self._adjust_position(parent_button)
 
     def _on_language_select(self, lang_code):
-        #if hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
-
         if self._dropdown:
             try:
                 self._dropdown.dismiss()
@@ -208,9 +205,6 @@ class ThemeSelectMenu:
         self._adjust_position(parent_button)
 
     def _on_theme_select(self, theme_id):
-        #if hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
-
         if self._dropdown:
             try:
                 self._dropdown.dismiss()
@@ -359,9 +353,6 @@ class EditorSettingsMenu:
         self._adjust_position(parent_button)
 
     def _on_item_click(self, handler, parent_button):
-        #if hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
-
         if self._dropdown:
             try:
                 self._dropdown.dismiss()
@@ -895,6 +886,196 @@ for item in items:
             Line(rectangle=(instance.pos[0], instance.pos[1], instance.size[0], instance.size[1]), width=dp(0.3))
 
 
+class LearningMenu:
+    """Подменю настроек обучения"""
+
+    def __init__(self, app):
+        self.app = app
+        self._dropdown = None
+
+    def show(self, parent_button):
+        theme = ThemeManager.get_theme()
+        btn_bg = theme.get('action_bar_bg', theme['widget_bg'])
+        self._dropdown = DropDown()
+        self._dropdown.auto_width = False
+        self._dropdown.width = dp(167)
+
+        from kivymd.uix.label import MDIcon
+        from kivy.uix.behaviors import ButtonBehavior
+
+        class MenuItem(ButtonBehavior, BoxLayout):
+            pass
+
+        # Кнопка сброса прогресса
+        box = MenuItem(
+            orientation='horizontal',
+            size_hint_y=None,
+            height=dp(30),
+            padding=(dp(8), 0),
+            spacing=dp(5)
+        )
+
+        icon = MDIcon(
+            icon='delete-forever',
+            font_size=f"{dp(10)}sp",
+            theme_text_color="Custom",
+            text_color=theme['text_color'],
+            size_hint_x=None,
+            width=dp(17)
+        )
+        box.add_widget(icon)
+
+        lbl = Label(
+            text=self.app.tr.get('reset_progress', 'Reset Progress'),
+            color=theme['text_color'],
+            font_size=dp(15),
+            font_name='SourceBold',
+            halign='left',
+            valign='middle'
+        )
+        box.add_widget(lbl)
+
+        box.canvas.before.clear()
+        with box.canvas.before:
+            Color(*btn_bg)
+            Rectangle(pos=box.pos, size=box.size)
+            Color(btn_bg[0] + 0.08, btn_bg[1] + 0.08, btn_bg[2] + 0.08, 1)
+            Line(rectangle=(box.pos[0], box.pos[1], box.size[0], box.size[1]), width=dp(0.5))
+
+        box.bind(
+            pos=lambda inst, val, bg=btn_bg: self._update_btn_bg(inst, bg),
+            size=lambda inst, val, bg=btn_bg: self._update_btn_bg(inst, bg)
+        )
+        box.bind(on_release=self._reset_progress)
+        self._dropdown.add_widget(box)
+
+        # ========== ДОБАВИТЬ ОБЁРТКУ КНОПОК В DROPDOWN ==========
+        if hasattr(self.app, 'wrap_widget_buttons'):
+            for child in self._dropdown.container.children:
+                self.app.wrap_widget_buttons(child)
+
+        Clock.schedule_once(lambda dt: self._dropdown.open(parent_button), 0.1)
+        self._adjust_position(parent_button)
+
+    def _reset_progress(self, instance):
+        """Показывает диалог подтверждения сброса прогресса"""
+        # Вибрация при нажатии
+        VibrationManager.vibrate(0.02)
+        # Закрываем дропдаун
+        if self._dropdown:
+            try:
+                self._dropdown.dismiss()
+            except:
+                pass
+
+        tr = self.app.tr
+        theme = ThemeManager.get_theme()
+
+        content = BoxLayout(orientation='vertical', padding=dp(15), spacing=dp(15))
+
+        msg_label = Label(
+            text=tr.get('reset_progress_confirm',
+                        'Are you sure you want to reset ALL learning progress?\nThis cannot be undone!'),
+            font_size=dp(14),
+            color=theme['text_color'],
+            halign='center',
+            size_hint_y=None,
+            height=dp(80)
+        )
+        msg_label.bind(width=lambda inst, val: setattr(inst, 'text_size', (val, None)))
+        content.add_widget(msg_label)
+
+        btn_layout = BoxLayout(size_hint_y=None, height=dp(40), spacing=dp(10))
+
+        def on_confirm(btn):
+            popup.dismiss()
+            self._actual_reset_progress()
+
+        def on_cancel(btn):
+            popup.dismiss()
+
+        confirm_btn = Button(
+            text=tr.get('yes_reset', 'Yes, Reset All'),
+            font_name='SourceBold',
+            background_color=(0.7, 0.1, 0.1, 1),  # Красный для опасного действия
+            background_normal='', background_down='',
+            color=(1, 1, 1, 1),
+            on_release=on_confirm
+        )
+
+        cancel_btn = Button(
+            text=tr.get('cancel', 'Cancel'),
+            font_name='SourceBold',
+            background_color=theme['widget_bg'],
+            background_normal='', background_down='',
+            color=theme['text_color'],
+            on_release=on_cancel
+        )
+
+        btn_layout.add_widget(cancel_btn)
+        btn_layout.add_widget(confirm_btn)
+        content.add_widget(btn_layout)
+
+        popup = ThemedPopup(
+            title=tr.get('reset_progress', 'Reset Progress'),
+            title_color=theme.get('popup_title', theme['text_color']),
+            title_bg=theme.get('popup_title_bg', theme['widget_bg']),
+            popup_bg=theme.get('popup_bg', theme.get('widget_bg', (0.188, 0.204, 0.251, 1))),
+            separator_color=theme.get('popup_separator', (0.25, 0.25, 0.25, 1)),
+            content=content,
+            size_hint=(0.85, 0.35),
+            auto_dismiss=False
+        )
+
+        # Обёртка кнопок
+        if hasattr(self.app, 'wrap_widget_buttons'):
+            self.app.wrap_widget_buttons(content)
+
+        popup.open()
+
+    def _actual_reset_progress(self):
+        """Выполняет сброс прогресса"""
+        tr = self.app.tr
+
+        try:
+            # Сброс прогресса через lesson_manager
+            if hasattr(self.app, 'lesson_manager'):
+                self.app.lesson_manager.reset_progress()
+                message = tr.get('progress_reset_success', 'Learning progress has been reset!')
+                self.app.show_result_popup(f"✓ {message}")
+
+                # Обновляем UI если есть доступ
+                if hasattr(self.app, 'update_ui_after_reset'):
+                    self.app.update_ui_after_reset()
+            else:
+                self.app.show_result_popup(tr.get('error', 'Error: Lesson manager not found'))
+        except Exception as e:
+            self.app.show_result_popup(f"Error: {str(e)}")
+
+    def _adjust_position(self, parent_button):
+        def adjust(*args):
+            win_width, win_height = Window.size
+            if self._dropdown and self._dropdown.parent:
+                if self._dropdown.x + self._dropdown.width > win_width:
+                    self._dropdown.x = win_width - self._dropdown.width - dp(3)
+                if self._dropdown.y < 0:
+                    self._dropdown.y = parent_button.y + parent_button.height
+                elif self._dropdown.y + self._dropdown.height > win_height:
+                    self._dropdown.y = parent_button.y - self._dropdown.height
+
+        Clock.schedule_once(adjust, 0.15)
+
+    def _update_btn_bg(self, instance, bg_color):
+        if not hasattr(instance, 'canvas'):
+            return
+        instance.canvas.before.clear()
+        with instance.canvas.before:
+            Color(*bg_color)
+            Rectangle(pos=instance.pos, size=instance.size)
+            Color(bg_color[0] + 0.08, bg_color[1] + 0.08, bg_color[2] + 0.08, 1)
+            Line(rectangle=(instance.pos[0], instance.pos[1], instance.size[0], instance.size[1]), width=dp(0.5))
+
+
 class SettingsMenu:
     """Выпадающее меню настроек"""
 
@@ -906,6 +1087,7 @@ class SettingsMenu:
         self._editor_menu = EditorSettingsMenu(app)
         self._syntax_menu = SyntaxHighlightMenu(app)
         self._vibration_menu = VibrationSettingsMenu(app)
+        self._learning_menu = LearningMenu(app)  # Добавляем меню обучения
 
     def show(self, parent_button):
         if hasattr(self.app, '_menu_dropdown') and self.app._menu_dropdown:
@@ -932,6 +1114,7 @@ class SettingsMenu:
             ('palette', 'syntax_highlight', lambda: self._open_syntax_submenu(parent_button)),
             ('tune', 'editor_settings', lambda: self._open_editor_submenu(parent_button)),
             ('vibrate', 'vibration_settings', lambda: self._open_vibration_submenu(parent_button)),
+            ('school', 'learning_settings', lambda: self._open_learning_submenu(parent_button)),  # Новый пункт
         ]
 
         for icon_name, item_key, handler in menu_items:
@@ -966,10 +1149,21 @@ class SettingsMenu:
         Clock.schedule_once(lambda dt: self._dropdown.open(parent_button), 0.1)
         self._adjust_position(parent_button)
 
+    def _open_learning_submenu(self, parent_button):
+        # Вибрация при открытии подменю
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
+
+        # Создаём подменю, если ещё не создано
+        if not hasattr(self, '_learning_menu') or self._learning_menu is None:
+            self._learning_menu = LearningMenu(self.app)
+
+        self._learning_menu.show(parent_button)
+
     def _open_vibration_submenu(self, parent_button):
         # Вибрация при открытии подменю
-        #if hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
 
         # Создаём подменю, если ещё не создано
         if not hasattr(self, '_vibration_menu') or self._vibration_menu is None:
@@ -986,23 +1180,23 @@ class SettingsMenu:
         handler()
 
     def _open_language_submenu(self, parent_button):
-        #if hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
         self._language_menu.show(parent_button)
 
     def _open_theme_submenu(self, parent_button):
-        #if hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
         self._theme_menu.show(parent_button)
 
     def _open_syntax_submenu(self, parent_button):
-        #if hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
         self._syntax_menu.show(parent_button)
 
     def _open_editor_submenu(self, parent_button):
-        #if hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
+        if hasattr(self.app, 'vibrate_short'):
+            self.app.vibrate_short()
         self._editor_menu.show(parent_button)
 
     def _adjust_position(self, parent_button):

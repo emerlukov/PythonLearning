@@ -7,6 +7,7 @@ Kivy's user_data_dir on Android, or project data/ during desktop dev.
 """
 import os
 import shutil
+import sys
 
 _PROJECT_ROOT = None
 _USER_DATA_DIR = None
@@ -34,6 +35,15 @@ def get_project_root() -> str:
     return _PROJECT_ROOT
 
 
+def is_android() -> bool:
+    """Проверяет, запущено ли приложение на Android"""
+    try:
+        from kivy.utils import platform
+        return platform == 'android'
+    except:
+        return False
+
+
 def set_user_data_dir(path: str | None) -> None:
     """Override writable storage directory (for tests)."""
     global _USER_DATA_DIR
@@ -59,18 +69,21 @@ def get_bundled_data_dir() -> str:
 
 
 def get_user_data_dir() -> str:
+    """Возвращает папку для пользовательских данных"""
     if _USER_DATA_DIR:
         return _USER_DATA_DIR
 
-    try:
-        from kivy.app import App
-        app = App.get_running_app()
-        if app and getattr(app, 'user_data_dir', None):
-            return app.user_data_dir
-    except Exception:
-        pass
+    # На Android используем app.user_data_dir
+    if is_android():
+        try:
+            from kivy.app import App
+            app = App.get_running_app()
+            if app and getattr(app, 'user_data_dir', None):
+                return app.user_data_dir
+        except Exception:
+            pass
 
-    # Desktop dev fallback: keep using project data/ for backward compatibility
+    # На десктопе всегда используем локальную папку data/
     return get_bundled_data_dir()
 
 

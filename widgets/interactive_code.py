@@ -295,7 +295,9 @@ class InteractiveCodeWidget(BoxLayout):
             cursor_color=theme.get('input_cursor', (1, 1, 1, 1)),
             background_normal='',
             background_active='',
-            keyboard_suggestions=False,
+            keyboard_suggestions=True,
+            input_type='text',
+            keyboard_mode='auto'
         )
 
         field._parent_row = parent_row
@@ -324,6 +326,31 @@ class InteractiveCodeWidget(BoxLayout):
                 VibrationManager.vibrate(0.015)
 
         field.bind(focus=on_focus)
+
+        def on_focus_for_symbol_bar(inst, focused):
+            if not focused:
+                return
+            from kivy.app import App
+            app = App.get_running_app()
+            if app and hasattr(app, 'symbol_bar'):
+                app.symbol_bar.text_input = inst
+
+        field.bind(focus=on_focus_for_symbol_bar)
+
+        # === СИНХРОНИЗАЦИЯ ПАНЕЛИ СИМВОЛОВ ПРИ ФОКУСЕ ===
+        def on_focus_for_keyboard_update(inst, focused):
+            if focused:
+                from kivy.app import App
+                from kivy.clock import Clock
+                app = App.get_running_app()
+                if app and hasattr(app, '_symbol_bar_update_fn'):
+                    # Несколько обновлений при получении фокуса
+                    Clock.schedule_once(lambda dt: app._symbol_bar_update_fn(), 0.01)
+                    Clock.schedule_once(lambda dt: app._symbol_bar_update_fn(), 0.05)
+                    Clock.schedule_once(lambda dt: app._symbol_bar_update_fn(), 0.1)
+                    Clock.schedule_once(lambda dt: app._symbol_bar_update_fn(), 0.15)
+
+        field.bind(focus=on_focus_for_keyboard_update)
         return field
 
     # ------------------------------------------------------------------ #

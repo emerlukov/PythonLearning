@@ -74,7 +74,7 @@ class MyActionBar(BoxLayout):
         self._keywords_popup = None
         self._autocomplete_popup = None
         self.action_keys = [self.ACTION_UNDO, self.ACTION_REDO, self.ACTION_COPY, self.ACTION_PASTE, self.ACTION_CUT,
-                            self.ACTION_SEL_ALL, self.ACTION_AUTO, self.ACTION_KEY, self.ACTION_CLEAN, self.ACTION_FIND,
+                            self.ACTION_SEL_ALL, self.ACTION_KEY, self.ACTION_CLEAN, self.ACTION_FIND,
                             self.ACTION_FIND_REPLACE, self.ACTION_GOTO]
         self.buttons = []
         self._create_scroll_view()
@@ -304,6 +304,13 @@ class MyActionBar(BoxLayout):
 
     def _show_autocomplete(self):
         app = App.get_running_app()
+
+        # Используем AutoCompleteWidget для показа полного списка
+        if app and hasattr(app, 'autocomplete'):
+            app.autocomplete.show_full_list()
+            return
+
+        # Fallback на старый механизм
         tr = app.tr if app else TRANSLATIONS['ru']
 
         def insert_word(word):
@@ -373,9 +380,9 @@ class MyActionBar(BoxLayout):
     def _refocus(self, ti):
         try:
             if ti and ti.parent:
+                # Восстанавливаем фокус на TextInput, но НЕ вызываем show_keyboard()
+                # напрямую — это может вызвать hide->show у IME и дерганье UI.
                 ti.focus = True
-                if hasattr(ti, 'show_keyboard'):
-                    ti.show_keyboard()
         except Exception as e:
             log_error(f"Refocus error: {e}")
 
@@ -535,6 +542,9 @@ class MySymbolScrollBar(BoxLayout):
         super().__init__(**kwargs)
         self.orientation = 'horizontal'
         self.size_hint_y = None
+        self.size_hint_x = None  # Явно устанавливаем для позиционирования в FloatLayout
+        # pos_hint не устанавливаем - используем абсолютное позиционирование через x и y
+        
         category = get_screen_category()
         if category == 'tablet':
             self.height = dp(42)
@@ -548,11 +558,12 @@ class MySymbolScrollBar(BoxLayout):
             self.height = dp(30)
             self.spacing = dp(2)
             self.padding = [dp(2), dp(2), dp(2), dp(2)]
+        
         self.app = None
         self.text_input = text_input
-        print(f"[DEBUG] MySymbolScrollBar initialized with text_input: {text_input}")
+        print(f"[SYMBOL_BAR] Initialized with height={self.height}, size_hint_y={self.size_hint_y}, pos_hint={self.pos_hint}")
         ThemeManager.register(self)
-        self.symbols = ['Tab', '#', '( )', '[ ]', '{ }', '" "', "' '", '=', ':', '.', '_', ',', '+', '-', '*', '/',
+        self.symbols = ['Tab', 'Auto', '#', '( )', '[ ]', '{ }', '" "', "' '", '=', ':', '.', '_', ',', '+', '-', '*', '/',
                         '\\', '%', ')', ']', '}', '<', '>', '!', '|', '&', '@', '~', '?', ';', '$', '^']
         self._action_map = self._build_action_map()
         self.buttons = []
@@ -584,7 +595,8 @@ class MySymbolScrollBar(BoxLayout):
             btn = Button(text=symbol, font_name='SourceBold', size_hint=(None, 1), width=width,
                          background_color=theme['symbol_btn_bg'], background_normal='', background_down='',
                          color=theme['symbol_btn_text'], font_size=dp(13))
-            btn.bind(on_press=self.handle_action)
+            # Используем on_release, чтобы не переключать фокус во время нажатия (меньше шансов на hide/show клавиатуры)
+            btn.bind(on_release=self.handle_action)
             self.buttons.append(btn)
 
     def _add_buttons_to_container(self):
@@ -615,7 +627,8 @@ class MySymbolScrollBar(BoxLayout):
             return lambda ti: ti.insert_text(text)
 
         return {
-            'Tab': lambda ti: self._handle_tab_button(ti), '=': insert_text('='), ':': insert_text(':'),
+            'Tab': lambda ti: self._handle_tab_button(ti), 'Auto': lambda ti: self._handle_autocomplete_button(ti),
+            '=': insert_text('='), ':': insert_text(':'),
             ',': insert_text(','), '.': insert_text('.'), '_': insert_text('_'), '+': insert_text('+'),
             '-': insert_text('-'), '*': insert_text('*'), '/': insert_text('/'), '\\': insert_text('\\'),
             '%': insert_text('%'), '#': insert_text('#'), '@': insert_text('@'), '&': insert_text('&'),
@@ -635,38 +648,30 @@ class MySymbolScrollBar(BoxLayout):
             btn.color = theme['symbol_btn_text']
 
     def handle_action(self, instance):
-        print(f"[DEBUG] SymbolBar button pressed: {instance.text}")
-        print(f"[DEBUG] self.app = {self.app}")
-        print(f"[DEBUG] self.text_input = {self.text_input}")
-
-        # ВИБРАЦИЯ
-        #if self.app and hasattr(self.app, 'vibrate_short'):
-            #self.app.vibrate_short()
-
         if instance.text != 'Tab':
             self._saved_sel_start = None
             self._saved_sel_end = None
         try:
             ti = self._get_active_text_input()
-            print(f"[DEBUG] Got text input: {ti}")
             if not ti:
-                print("[DEBUG] No text input found!")
                 return
             action = self._action_map.get(instance.text)
-            print(f"[DEBUG] Action found: {action}")
             if action:
+                # Выполняем вставку без резких переключений фокуса — затем безопасно восстанавливаем фокус и показываем клавиатуру
                 action(ti)
-                Clock.schedule_once(lambda dt: self._refocus(ti), 0.05)
-            else:
-                print(f"[DEBUG] No action found for: {instance.text}")
+                # Гарантированно восстановим фокус и вызовем show_keyboard() в следующем кадре
+                Clock.schedule_once(lambda dt: self._refocus(ti), 0.01)
         except Exception as e:
             log_error(f"SymbolBar error: {e}")
-            print(f"[DEBUG] SymbolBar exception: {e}")
+
+    def _handle_autocomplete_button(self, ti):
+        """Обрабатывает нажатие кнопки автодополнения"""
+        app = App.get_running_app()
+        if app and hasattr(app, 'autocomplete'):
+            app.autocomplete.show_full_list()
 
     def _handle_tab_button(self, ti):
         try:
-            print("[DEBUG] Symbol bar Tab button pressed")
-
             editor = None
             app = App.get_running_app()
             if app and hasattr(app, 'tab_manager'):
@@ -725,7 +730,8 @@ class MySymbolScrollBar(BoxLayout):
 
             def restore(dt):
                 try:
-                    ti.focus = True
+                    # Не восстанавливаем фокус чтобы не вызывать обновление клавиатуры
+                    # ti.focus = True
                     ti.select_text(new_start, new_end)
                     Clock.schedule_once(lambda _: editor._unfreeze_scroll(), 0)
                 except Exception as e:
@@ -752,28 +758,30 @@ class MySymbolScrollBar(BoxLayout):
                 pass
 
     def _get_active_text_input(self):
-        # Приоритет 1: текущий input_widget (для диалогов)
+        # Приоритет 1: current_input_widget (для диалогов поверх)
         if self.app and hasattr(self.app, 'current_input_widget') and self.app.current_input_widget:
-            print("[DEBUG] Using app.current_input_widget")
             return self.app.current_input_widget
 
-        # Приоритет 2: активный редактор из tab_manager
+        # Приоритет 2: self.text_input — переключается динамически:
+        #   - в основном режиме указывает на app.code_input
+        #   - в уроке (практика) переключается на активное поле InteractiveCodeWidget
+        if self.text_input:
+            return self.text_input
+
+        # Приоритет 3: fallback через tab_manager
         if self.app and hasattr(self.app, 'tab_manager'):
             editor = self.app.tab_manager.get_active_editor()
             if editor and hasattr(editor, 'text_input'):
-                print("[DEBUG] Using editor from tab_manager")
                 return editor.text_input
 
-        # Приоритет 3: сохранённый text_input
-        print("[DEBUG] Using self.text_input")
-        return self.text_input
+        return None
 
     def _refocus(self, ti):
         try:
             if ti and ti.parent:
+                # Восстанавливаем фокус на TextInput, но НЕ вызываем show_keyboard()
+                # напрямую — это может вызвать hide->show у IME и дерганье UI.
                 ti.focus = True
-                if hasattr(ti, 'show_keyboard'):
-                    ti.show_keyboard()
         except Exception as e:
             log_error(f"Refocus error: {e}")
 

@@ -902,7 +902,10 @@ class LineNumberTextInput(BoxLayout):
                     background_active='',
                     use_bubble=False,
                     use_handles=True,
-                    write_tab=False
+                    write_tab=False,
+                    keyboard_suggestions=True,
+                    input_type='text',
+                    keyboard_mode='auto'
                 )
             else:
                 self.text_input = CodeInput(
@@ -921,7 +924,10 @@ class LineNumberTextInput(BoxLayout):
                     background_active='',
                     use_bubble=False,
                     use_handles=True,
-                    write_tab=False
+                    write_tab=False,
+                    keyboard_suggestions=True,
+                    input_type='text',
+                    keyboard_mode='auto'
                 )
         else:
             # Без подсветки - используем TextInput с ручками
@@ -939,7 +945,10 @@ class LineNumberTextInput(BoxLayout):
                 background_active='',
                 use_bubble=False,
                 use_handles=True,
-                write_tab=False
+                write_tab=False,
+                keyboard_suggestions=True,
+                input_type='text',
+                keyboard_mode='auto'
             )
 
         self._font_size = font_size
@@ -949,6 +958,16 @@ class LineNumberTextInput(BoxLayout):
         if hasattr(self.text_input, 'minimum_width'):
             self.text_input.bind(minimum_width=self.text_input.setter('width'))
         self.text_input.width = dp(400)
+        
+        # Включаем системные подсказки клавиатуры через Android API
+        if platform == 'android':
+            try:
+                from managers.ime_support import KeyboardSupport
+                keyboard_support = KeyboardSupport()
+                Clock.schedule_once(lambda dt: keyboard_support.enable_suggestions_for_textinput(self.text_input), 0.1)
+            except Exception as e:
+                log_error(f"Failed to enable keyboard suggestions: {e}")
+        
         scroll_bar_color = theme.get('scroll_bar_color', (0.4, 0.4, 0.4, 0.9))
         scroll_bar_inactive = theme.get('scroll_bar_inactive', (0.25, 0.25, 0.25, 0.6))
         self.editor_scroll = ScrollView(size_hint=(1, 1), do_scroll_x=True, do_scroll_y=True,
@@ -1141,13 +1160,22 @@ class LineNumberTextInput(BoxLayout):
             self._save_undo_state(immediate=False)
 
         app = App.get_running_app()
-        if app and hasattr(app, 'autocomplete'):
+        if app:
             try:
                 cursor_index = instance.cursor_index()
                 before_cursor = value[:cursor_index]
                 match = re.search(r'([a-zA-Z_]\w*)$', before_cursor)
                 current_word = match.group(1) if match else ''
-                app.autocomplete.show_suggestions(current_word)
+
+
+
+                # Сохраняем старый механизм для совместимости
+                if hasattr(app, 'autocomplete'):
+                    app.autocomplete.show_suggestions(current_word)
+
+                # Обработка IME для Google Keyboard и других методов ввода
+                if hasattr(app, 'ime_text_handler'):
+                    app.ime_text_handler.update_composition(current_word, cursor_index)
             except:
                 pass
 
@@ -1218,7 +1246,7 @@ class LineNumberTextInput(BoxLayout):
 
         # Умный TARGET: меньше строк если клавиатура не видна
         if self._keyboard_visible:
-            TARGET = 20  # достаточно для прокрутки над клавиатурой
+            TARGET = 35  # достаточно для прокрутки над клавиатурой (увеличено на 3 строки)
         else:
             TARGET = 5  # минимальный запас когда клавиатуры нет
 
@@ -1244,6 +1272,9 @@ class LineNumberTextInput(BoxLayout):
 
         self._ensuring_trailing = True
         try:
+            # Замораживаем скролл, чтобы предотвратить поднятие приложения
+            self._freeze_scroll()
+            
             # Сохраняем позицию курсора
             cursor_index = self.text_input.cursor_index()
             lines_to_add = TARGET - trailing
@@ -1263,7 +1294,11 @@ class LineNumberTextInput(BoxLayout):
             except:
                 pass
 
+            # Размораживаем скролл
+            Clock.schedule_once(self._unfreeze_scroll, 0)
+
         except Exception as e:
+            self._unfreeze_scroll()
             log_error(f"_ensure_trailing_empty_lines error: {e}")
         finally:
             self._ensuring_trailing = False
@@ -1717,10 +1752,22 @@ class LineNumberTextInput(BoxLayout):
                 self._ensure_trailing_empty_lines()
                 self._unfreeze_scroll()
             Clock.schedule_once(_ensure_and_unfreeze, 0.3)
+            
+            # === ОБНОВЛЕНИЕ СИМВОЛ-ПАНЕЛИ ===
+            app = App.get_running_app()
+            if app and hasattr(app, '_symbol_bar_update_fn'):
+                # Уменьшаем количество обновлений при получении фокуса, оставляем 3 для надежности
+                Clock.schedule_once(lambda dt: app._symbol_bar_update_fn(), 0.05)
+                Clock.schedule_once(lambda dt: app._symbol_bar_update_fn(), 0.12)
+                Clock.schedule_once(lambda dt: app._symbol_bar_update_fn(), 0.30)
+                
         else:
             self._keyboard_visible = False
-            # Обрезаем лишние строки когда клавиатура скрыта
-            #Clock.schedule_once(self._trim_trailing_lines, 0.1)
+            
+            # Обновление при потере фокуса
+            app = App.get_running_app()
+            if app and hasattr(app, '_symbol_bar_update_fn'):
+                Clock.schedule_once(lambda dt: app._symbol_bar_update_fn(), 0.1)
 
     def _show_keyboard(self, dt=None):
         try:
@@ -1733,16 +1780,26 @@ class LineNumberTextInput(BoxLayout):
                         PythonActivity = autoclass('org.kivy.android.PythonActivity')
                         activity = PythonActivity.mActivity
                         if activity:
-                            # ADJUST_NOTHING — запрещаем системе двигать/ресайзить
-                            # окно при появлении клавиатуры. Без этого Android
-                            # делает adjustPan и поднимает всё приложение вверх.
-                            # SOFT_INPUT_ADJUST_NOTHING = 0x00000030
-                            activity.getWindow().setSoftInputMode(0x00000030)
+                            # Устанавливаем режим, позволяющий отслеживать высоту клавиатуры
+                            # (ADJUST_RESIZE позволяет окну изменять размер и Window.keyboard_height обновится)
+                            # Не меняем softInputMode — используем WindowInsets для определения высоты клавиатуры,
+                            # чтобы избежать переразметки интерфейса (дерганья верхних панелей).
+                            pass
+
                             InputMethodManager = autoclass('android.view.inputmethod.InputMethodManager')
                             Context = autoclass('android.content.Context')
                             imm = activity.getSystemService(Context.INPUT_METHOD_SERVICE)
-                            imm.showSoftInput(activity.getCurrentFocus(), InputMethodManager.SHOW_FORCED)
-                    except:
+                            try:
+                                imm.showSoftInput(activity.getCurrentFocus(), InputMethodManager.SHOW_FORCED)
+                            except Exception:
+                                # Последняя попытка: request focus then show
+                                try:
+                                    current = activity.getCurrentFocus()
+                                    if current:
+                                        imm.showSoftInput(current, InputMethodManager.SHOW_FORCED)
+                                except Exception:
+                                    pass
+                    except Exception:
                         pass
         except Exception as e:
             log_error(f"Error showing keyboard: {e}")

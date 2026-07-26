@@ -359,7 +359,10 @@ class SearchOnlyPopup(BoxLayout):
             foreground_color=theme['input_text'],
             cursor_color=theme['input_cursor'],
             hint_text_color=theme['hint_text'],
-            size_hint_x=0.7
+            size_hint_x=0.7,
+            keyboard_suggestions=True,
+            input_type='text',
+            keyboard_mode='auto'
         )
         self.search_input.bind(text=self._on_search_text_change)
         search_row.add_widget(self.search_input)
@@ -596,7 +599,10 @@ class SearchReplacePopup(BoxLayout):
             foreground_color=theme['input_text'],
             cursor_color=theme['input_cursor'],
             hint_text_color=theme['hint_text'],
-            size_hint_x=0.6
+            size_hint_x=0.6,
+            keyboard_suggestions=True,
+            input_type='text',
+            keyboard_mode='auto'
         )
         self.search_input.bind(text=self._on_search_text_change)
         search_row.add_widget(self.search_input)
@@ -639,7 +645,10 @@ class SearchReplacePopup(BoxLayout):
             foreground_color=theme['input_text'],
             cursor_color=theme['input_cursor'],
             hint_text_color=theme['hint_text'],
-            size_hint_x=0.6
+            size_hint_x=0.6,
+            keyboard_suggestions=True,
+            input_type='text',
+            keyboard_mode='auto'
         )
         replace_row.add_widget(self.replace_input)
 

@@ -320,10 +320,10 @@ class SearchOnlyPopup(BoxLayout):
         header_box = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(28), spacing=dp(10))
 
         header_label = Label(
-            text=tr.get('find', '🔍 Search'),
+            text=tr.get('find', '⌨ Search'),
             color=theme.get('text_color', (0.85, 0.88, 0.90, 1)),
             font_size=dp(14),
-            font_name='SourceBold',
+            font_name='DejaVuSans',
             size_hint_x=0.7,
             halign='left',
             valign='middle'

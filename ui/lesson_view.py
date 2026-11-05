@@ -24,10 +24,26 @@ from kivy.core.clipboard import Clipboard
 from kivy.core.window import Window
 from kivy.utils import platform
 
-from ide_core.themes import ThemeManager
-from ide_core.lessons import LessonManager
-from widgets.editor import LineNumberTextInput
-from widgets.dialogs import ThemedPopup
+# Импорт с защитой от ошибок при прямом запуске
+try:
+    from ide_core.themes import ThemeManager
+except ImportError:
+    ThemeManager = None
+
+try:
+    from ide_core.lessons import LessonManager
+except ImportError:
+    LessonManager = None
+
+try:
+    from widgets.editor import LineNumberTextInput
+except ImportError:
+    LineNumberTextInput = None
+
+try:
+    from widgets.dialogs import ThemedPopup
+except ImportError:
+    ThemedPopup = None
 from widgets import InteractiveCodeWidget
 from utils.vibration_manager import VibrationManager
 

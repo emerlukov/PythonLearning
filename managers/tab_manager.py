@@ -10,6 +10,7 @@ from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.dropdown import DropDown
+from kivy.uix.scrollview import ScrollView
 from kivy.graphics import Color, Rectangle
 from kivy.clock import Clock
 from kivy.metrics import dp
@@ -30,8 +31,6 @@ class TabManager:
         self.active_index = -1
         self.tab_bar = None
         self.app = None
-        self.tab_offset = 0
-        self.max_visible = get_tab_count()
 
     def check_tab_changed(self, index):
         """Проверяет, изменилось ли содержимое вкладки"""
@@ -166,20 +165,24 @@ class TabManager:
             self.tab_bg_rect = Rectangle(pos=self.tab_bar.pos, size=self.tab_bar.size)
         self.tab_bar.bind(pos=self._update_tab_bg, size=self._update_tab_bg)
 
-        self.btn_left = Button(text='◀', font_name='SourceBold', size_hint_x=None, width=dp(20),
-                               background_color=theme.get('tab_inactive_bg', theme['widget_bg']), background_normal='',
-                               background_down='', color=theme['text_color'], font_size=tab_font_size, bold=True)
-        self.btn_left.bind(on_release=lambda x: self._scroll_tabs(-1))
-        self.tab_bar.add_widget(self.btn_left)
+        # ScrollView для горизонтальной прокрутки вкладок
+        self.tab_scroll = ScrollView(
+            size_hint=(1, 1),
+            do_scroll_x=True,
+            do_scroll_y=False,
+            scroll_type=['content', 'bars'],
+            bar_width=dp(0)  # Скрываем полосу прокрутки
+        )
 
-        self.tab_buttons_container = BoxLayout(spacing=dp(1), size_hint=(1, 1), padding=[dp(0.7), dp(2), dp(0.7), 0])
-        self.tab_bar.add_widget(self.tab_buttons_container)
-
-        self.btn_right = Button(text='▶', font_name='SourceBold', size_hint_x=None, width=dp(20),
-                                background_color=theme.get('tab_inactive_bg', theme['widget_bg']), background_normal='',
-                                background_down='', color=theme['text_color'], font_size=tab_font_size, bold=True)
-        self.btn_right.bind(on_release=lambda x: self._scroll_tabs(1))
-        self.tab_bar.add_widget(self.btn_right)
+        # Контейнер для кнопок вкладок внутри ScrollView
+        self.tab_buttons_container = BoxLayout(
+            spacing=dp(1),
+            size_hint_x=None,
+            padding=[dp(0.7), dp(2), dp(0.7), 0]
+        )
+        self.tab_buttons_container.bind(minimum_width=self.tab_buttons_container.setter('width'))
+        self.tab_scroll.add_widget(self.tab_buttons_container)
+        self.tab_bar.add_widget(self.tab_scroll)
 
         btn_add = Button(text='+', font_name='SourceBold', size_hint_x=None, width=dp(25),
                          background_color=theme.get('tab_add_btn_bg', theme['widget_bg']), background_normal='',
@@ -194,11 +197,6 @@ class TabManager:
         if hasattr(self, 'tab_bg_rect'):
             self.tab_bg_rect.pos = instance.pos
             self.tab_bg_rect.size = instance.size
-
-    def _scroll_tabs(self, direction):
-        max_offset = max(0, len(self.tabs) - self.max_visible)
-        self.tab_offset = max(0, min(self.tab_offset + direction, max_offset))
-        self._update_tab_bar()
 
     def _on_add_tab(self):
         # ВИБРАЦИЯ
@@ -508,16 +506,6 @@ class TabManager:
         with self.tab_bar.canvas.before:
             Color(*new_bg)
             self.tab_bg_rect = Rectangle(pos=self.tab_bar.pos, size=self.tab_bar.size)
-        if hasattr(self, 'btn_left'):
-            self.btn_left.background_color = theme['widget_bg']
-            self.btn_left.color = theme['text_color']
-            if hasattr(self.btn_left, 'canvas'):
-                self.btn_left.canvas.ask_update()
-        if hasattr(self, 'btn_right'):
-            self.btn_right.background_color = theme['widget_bg']
-            self.btn_right.color = theme['text_color']
-            if hasattr(self.btn_right, 'canvas'):
-                self.btn_right.canvas.ask_update()
         for child in self.tab_bar.children:
             if isinstance(child, Button) and child.text == '+':
                 child.background_color = theme['widget_bg']
@@ -534,13 +522,9 @@ class TabManager:
             return
         self.tab_buttons_container.clear_widgets()
         theme = ThemeManager.get_theme()
-        start_idx = self.tab_offset
-        end_idx = min(start_idx + self.max_visible, len(self.tabs))
-        if hasattr(self, 'btn_left'):
-            self.btn_left.disabled = (self.tab_offset == 0)
-        if hasattr(self, 'btn_right'):
-            self.btn_right.disabled = (end_idx >= len(self.tabs))
-        for i in range(start_idx, end_idx):
+
+        # Показываем все вкладки в ScrollView
+        for i in range(len(self.tabs)):
             tab = self.tabs[i]
             title = tab['title']
             if len(title) > 15:

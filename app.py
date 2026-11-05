@@ -27,13 +27,15 @@ from utils import (
 from utils.keyboard_tracker import get_keyboard_tracker
 from ide_core import SettingsManager, ThemeManager, SyntaxStyleManager, TRANSLATIONS, LessonManager
 from widgets import MyActionBar, MySymbolScrollBar
-from managers import AutoCompleteWidget, CodeExecutor, TabManager, KeyboardSupport, IMETextHandler
+from managers import AutoCompleteWidget, CodeExecutor, TabManager, KeyboardSupport, IMETextHandler, AIAgent
 from file_manager import FileManager
 from managers import examples_manager
 
 # Импортируем новые модули
 from ui.top_bar import TopBarBuilder
 from ui.menus import SettingsMenu
+from ui.ai_chat import open_ai_chat
+from ui.ai_settings import open_ai_settings
 from managers.file_handlers import FileOperationHandlers
 from managers.input_handler import InputHandler
 from managers.emergency_recovery import EmergencyRecovery
@@ -42,6 +44,7 @@ from utils.hotkeys import HotkeyManager
 from utils.vibration_manager import VibrationManager, wrap_all_buttons, auto_wrap_on_build
 from utils.paths import user_data_path, ensure_user_data_dir, migrate_legacy_data
 from utils.keyboard_tracker import get_keyboard_tracker
+from utils.crash_logger import install_crash_handler, log_error as crash_log_error
 
 
 class PythonLearningApp(MDApp):
@@ -49,6 +52,13 @@ class PythonLearningApp(MDApp):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+        # Устанавливаем обработчик крашей как можно раньше
+        try:
+            install_crash_handler()
+            print("[App] Crash logger installed successfully")
+        except Exception as e:
+            print(f"[App] Failed to install crash logger: {e}")
 
         migrate_legacy_data()
 
@@ -75,12 +85,18 @@ class PythonLearningApp(MDApp):
         self.tab_manager = TabManager()
         self.tab_manager.app = self
         self.file_manager = FileManager(self)
+        
+        # Ссылка на открытый чат ИИ для обновления локали
+        self.ai_chat_screen = None
 
         # Менеджеры операций (новые)
         self.file_handlers = FileOperationHandlers(self)
         self.input_handler = InputHandler(self)
         self.emergency_recovery = EmergencyRecovery(self)
         self.hotkey_manager = HotkeyManager(self)
+
+        # ИИ-агент
+        self.ai_agent = AIAgent(settings_manager=SettingsManager)
 
         # UI компоненты
         self.top_bar_builder = TopBarBuilder(self)
@@ -157,6 +173,16 @@ class PythonLearningApp(MDApp):
         Clock.schedule_once(lambda dt: self.check_and_request_manage_storage(), 1)
         # Применяем язык после загрузки UI
         Clock.schedule_once(lambda dt: self._apply_language_to_ui(), 0.5)
+
+        # Логируем успешный запуск приложения
+        try:
+            crash_log_error("Application started successfully", {
+                'language': self.current_language,
+                'theme': self.current_theme_name,
+                'platform': platform
+            })
+        except Exception as e:
+            print(f"[App] Failed to log startup: {e}")
 
         # ДОБАВЛЯЕМ: автоматическая обёртка кнопок (безопасно)
         try:
@@ -267,6 +293,9 @@ class PythonLearningApp(MDApp):
 
         # Плавающая кнопка Run
         root_layout = self._create_run_button(main_layout, theme)
+
+        # Плавающая кнопка AI Tutor (отключена - теперь в top_bar)
+        # self._create_ai_fab_button(root_layout, theme)
 
         # Добавляем symbol_bar в root_layout для позиционирования
         root_layout.add_widget(self.symbol_bar)
@@ -619,6 +648,41 @@ class PythonLearningApp(MDApp):
         self.root_layout = root_layout
         return root_layout
 
+    def _create_ai_fab_button(self, root_layout, theme):
+        """Создаёт плавающую кнопку для ИИ-тьютора"""
+        from kivymd.uix.button import MDFloatingActionButton
+        from kivy.graphics import Ellipse, Color
+
+        category = get_screen_category()
+        if category == 'tablet':
+            btn_size = dp(56)
+        elif category == 'large_phone':
+            btn_size = dp(48)
+        else:
+            btn_size = dp(45)
+
+        # Позиция кнопки AI (слева от кнопки Run)
+        margin_bottom = dp(12)
+        margin_right = dp(12)
+
+        self.ai_fab = MDFloatingActionButton(
+            icon='robot',
+            size_hint=(None, None),
+            size=(btn_size, btn_size),
+            pos_hint={"right": 0.96, "y": 0.12},
+            md_bg_color=(0.2, 0.6, 1.0, 0.8),
+            on_release=self.open_ai_tutor,
+        )
+
+        def set_ai_btn_pos(instance, value):
+            x = root_layout.width - btn_size * 2 - margin_right - dp(8)
+            y = margin_bottom
+            self.ai_fab.pos = (x, y)
+
+        root_layout.bind(size=set_ai_btn_pos, pos=set_ai_btn_pos)
+        Clock.schedule_once(lambda dt: set_ai_btn_pos(None, None), 0.3)
+        root_layout.add_widget(self.ai_fab)
+
     def _restore_run_button(self):
         """Восстанавливает иконку на кнопке запуска"""
         if not hasattr(self, 'run_btn') or self.run_btn is None:
@@ -723,6 +787,14 @@ class PythonLearningApp(MDApp):
             current_text = self.spinner.text
             self.spinner.values = self._get_example_titles()
             self.spinner.text = current_text
+
+        # Обновляем локаль в открытом чате ИИ
+        if hasattr(self, 'ai_chat_screen') and self.ai_chat_screen:
+            try:
+                self.ai_chat_screen.update_locale(self.current_language)
+                print(f"[DEBUG] Updated AI chat locale to: {self.current_language}")
+            except Exception as e:
+                print(f"[DEBUG] Error updating AI chat locale: {e}")
 
         self._save_language()
 
@@ -1221,6 +1293,18 @@ class PythonLearningApp(MDApp):
             on_release=lambda x: self._copy_result(result)
         )
 
+        # Кнопка "Объяснить ИИ" если есть ошибка
+        is_error = "Error" in result or "ошибка" in result.lower() or "Traceback" in result
+        if is_error and hasattr(self, 'ai_agent'):
+            btn_ai_explain = Button(
+                text="AI Explain" if self.current_language == 'en' else "Объяснить ИИ",
+                font_name='SourceBold',
+                background_color=(0.2, 0.6, 1.0, 0.3), background_normal='', background_down='',
+                color=theme['text_color'], font_size=dp(15), size_hint_y=None, height=dp(33),
+                on_release=lambda x: self._ai_explain_error(result)
+            )
+            btn_layout.add_widget(btn_ai_explain)
+
         btn_close = Button(
             text=self.tr.get('close', 'Close'), font_name='SourceBold',
             background_color=theme['widget_bg'], background_normal='', background_down='',
@@ -1252,6 +1336,90 @@ class PythonLearningApp(MDApp):
         btn_close.bind(on_release=popup.dismiss)
         popup.open()
         self._popup = popup
+
+    def _ai_explain_error(self, error_result):
+        """Объясняет ошибку через ИИ"""
+        if not hasattr(self, 'ai_agent'):
+            return
+
+        def get_code():
+            try:
+                return self.get_current_editor_text()
+            except Exception:
+                return ""
+
+        # Вызываем ИИ
+        self.ai_agent.explain_error(
+            error_text=error_result,
+            code=get_code(),
+            locale=self.current_language,
+            on_success=lambda answer: self._show_ai_explanation(answer),
+            on_error=lambda e: print(f"AI Error: {e}")
+        )
+
+    def _show_ai_explanation(self, explanation):
+        """Показывает объяснение от ИИ"""
+        theme = ThemeManager.get_theme()
+
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.button import Button
+        from kivy.uix.scrollview import ScrollView
+        from kivy.uix.textinput import TextInput
+        from widgets.dialogs import ThemedPopup
+
+        content = BoxLayout(orientation='vertical', padding=dp(5), spacing=dp(3))
+
+        scroll = ScrollView(size_hint=(1, 0.85), do_scroll_x=False, do_scroll_y=True)
+
+        output_view = TextInput(
+            text=str(explanation), readonly=True, font_size=dp(16),
+            font_name='DejaVuSans', background_color=theme['result_bg'],
+            foreground_color=theme['result_text'], do_wrap=True, multiline=True,
+            size_hint_y=None, height=dp(33), padding=(dp(5), dp(5), dp(5), dp(5))
+        )
+        output_view.bind(minimum_height=output_view.setter('height'))
+        scroll.add_widget(output_view)
+        content.add_widget(scroll)
+
+        btn_layout = BoxLayout(size_hint_y=None, height=dp(18), spacing=dp(3))
+
+        btn_copy = Button(
+            text=self.tr.get('copy_btn', 'Copy'), font_name='SourceBold',
+            background_color=theme['widget_bg'], background_normal='', background_down='',
+            color=theme['text_color'], font_size=dp(15), size_hint_y=None, height=dp(33),
+            on_release=lambda x: self._copy_result(explanation)
+        )
+
+        btn_close = Button(
+            text=self.tr.get('close', 'Close'), font_name='SourceBold',
+            background_color=theme['widget_bg'], background_normal='', background_down='',
+            color=theme['text_color'], font_size=dp(15), size_hint_y=None, height=dp(33)
+        )
+
+        btn_layout.add_widget(btn_copy)
+        btn_layout.add_widget(btn_close)
+        content.add_widget(btn_layout)
+
+        category = get_screen_category()
+        if category == 'tablet':
+            size_hint = (0.75, 0.70)
+        elif category == 'large_phone':
+            size_hint = (0.85, 0.76)
+        else:
+            size_hint = (0.90, 0.82)
+
+        if hasattr(self, 'wrap_widget_buttons'):
+            self.wrap_widget_buttons(content)
+
+        popup = ThemedPopup(
+            title="AI Explanation" if self.current_language == 'en' else "Объяснение ИИ",
+            popup_bg=theme.get('popup_bg', (0.188, 0.204, 0.251, 1)),
+            title_bg=theme.get('popup_title_bg', (0.188, 0.204, 0.251, 1)),
+            title_color=theme['popup_title'], content=content, size_hint=size_hint,
+            auto_dismiss=False, separator_color=theme.get('popup_separator', (0.25, 0.25, 0.25, 1))
+        )
+        btn_close.bind(on_release=popup.dismiss)
+        popup.open()
 
     def _copy_result(self, text):
         """Копирует результат в буфер обмена"""
@@ -1287,6 +1455,121 @@ class PythonLearningApp(MDApp):
         )
         browser.show(self.file_handlers.on_file_saved, save_filename=suggested_name)
         self._current_file_popup = browser
+
+    def _show_rename_tab_dialog(self, index):
+        """Показывает диалог переименования вкладки"""
+        from kivy.uix.boxlayout import BoxLayout
+        from kivy.uix.button import Button
+        from kivy.uix.label import Label
+        from kivy.uix.textinput import TextInput
+        from widgets.dialogs import ThemedPopup
+
+        theme = ThemeManager.get_theme()
+        tr = self.tr
+
+        # Адаптивные размеры
+        category = get_screen_category()
+        if category == 'tablet':
+            padding = dp(20)
+            spacing = dp(15)
+            btn_height = dp(55)
+            font_size_msg = dp(16)
+            font_size_btn = dp(15)
+            popup_size = (0.6, 0.35)
+        elif category == 'large_phone':
+            padding = dp(15)
+            spacing = dp(12)
+            btn_height = dp(50)
+            font_size_msg = dp(14)
+            font_size_btn = dp(13)
+            popup_size = (0.7, 0.38)
+        else:
+            padding = dp(12)
+            spacing = dp(10)
+            btn_height = dp(45)
+            font_size_msg = dp(13)
+            font_size_btn = dp(12)
+            popup_size = (0.8, 0.40)
+
+        content = BoxLayout(orientation='vertical', padding=padding, spacing=spacing)
+
+        # Текущее название вкладки
+        current_title = ""
+        if 0 <= index < len(self.tab_manager.tabs):
+            current_title = self.tab_manager.tabs[index]['title']
+
+        # Поле ввода
+        text_input = TextInput(
+            text=current_title,
+            font_size=font_size_msg,
+            font_name='SourceBold',
+            background_color=theme['widget_bg'],
+            foreground_color=theme['text_color'],
+            padding=(dp(10), dp(10)),
+            size_hint_y=None,
+            height=dp(50),
+            multiline=False
+        )
+        content.add_widget(text_input)
+
+        btn_layout = BoxLayout(size_hint_y=None, height=btn_height, spacing=spacing)
+
+        popup = ThemedPopup(
+            title=tr.get('rename_tab', 'Rename tab'),
+            title_color=theme['popup_title'],
+            title_bg=theme.get('popup_title_bg', theme['widget_bg']),
+            popup_bg=theme.get('popup_bg', theme.get('widget_bg', (0.188, 0.204, 0.251, 1))),
+            separator_color=theme.get('popup_separator', (0.25, 0.25, 0.25, 1)),
+            content=content,
+            size_hint=popup_size,
+            auto_dismiss=False
+        )
+
+        def on_rename(x):
+            new_title = text_input.text.strip()
+            if new_title and 0 <= index < len(self.tab_manager.tabs):
+                self.tab_manager.set_active_title(new_title)
+            popup.dismiss()
+
+        def on_cancel(x):
+            popup.dismiss()
+
+        btn_rename = Button(
+            text=tr.get('rename', 'Rename'),
+            font_name='SourceBold',
+            background_color=(0.2, 0.5, 0.2, 1),
+            background_normal='', background_down='',
+            color=(1, 1, 1, 1),
+            font_size=font_size_btn,
+            size_hint=(1, 1),
+            on_release=on_rename
+        )
+
+        btn_cancel = Button(
+            text=tr.get('cancel', 'Cancel'),
+            font_name='SourceBold',
+            background_color=theme.get('widget_bg', (0.141, 0.145, 0.149, 1)),
+            background_normal='', background_down='',
+            color=theme['text_color'],
+            font_size=font_size_btn,
+            size_hint=(1, 1),
+            on_release=on_cancel
+        )
+
+        btn_layout.add_widget(btn_cancel)
+        btn_layout.add_widget(btn_rename)
+        content.add_widget(btn_layout)
+
+        # Обёртка для вибрации
+        if hasattr(self, 'wrap_widget_buttons'):
+            self.wrap_widget_buttons(content)
+
+        # Автоматический фокус на поле ввода
+        def focus_input(dt):
+            text_input.focus = True
+        Clock.schedule_once(focus_input, 0.1)
+
+        popup.open()
 
     def _save_tab_content_by_id(self, file_path, content, tab_id):
         """Сохраняет содержимое вкладки по известному пути файла"""
@@ -1647,6 +1930,8 @@ class PythonLearningApp(MDApp):
             ('find-replace', tr['find_replace'], self.show_search_replace_dialog),
             ('history', tr['history'], self.show_history),
             ('code-tags', tr['format'], self.format_code),
+            ('robot', 'AI Tutor', self.open_ai_tutor),
+            # ('cog-outline', 'AI Settings', self.open_ai_settings_dialog),  # Убрано - теперь в меню Settings
             ('cog', tr['settings'], self._open_settings_menu),
         ]
 
@@ -1746,6 +2031,14 @@ class PythonLearningApp(MDApp):
         if hasattr(self, '_menu_dropdown'):
             self._create_menu_items(ThemeManager.get_theme())
 
+        # Обновляем локаль в открытом чате ИИ
+        if hasattr(self, 'ai_chat_screen') and self.ai_chat_screen:
+            try:
+                self.ai_chat_screen.update_locale(self.current_language)
+                print(f"[DEBUG] Updated AI chat locale to: {self.current_language}")
+            except Exception as e:
+                print(f"[DEBUG] Error updating AI chat locale: {e}")
+
         self._update_title_from_current_tab()
 
         from managers import examples_manager
@@ -1800,6 +2093,67 @@ class PythonLearningApp(MDApp):
         reset_screen_cache()
         Clock.schedule_once(lambda dt: self._refresh_ui_after_resize(), 0.1)
         return True
+
+    def open_ai_tutor(self, *args):
+        """Открывает чат с ИИ-тьютором"""
+        def get_context():
+            try:
+                return self.get_current_editor_text()
+            except Exception:
+                return ""
+
+        # Храним ссылку на экран чата для обновления локали
+        modal = open_ai_chat(
+            self.ai_agent,
+            locale=self.current_language if hasattr(self, "current_language") else "ru",
+            get_context_callback=get_context,
+        )
+        
+        # Сохраняем ссылку на экран чата
+        if hasattr(modal, 'children') and len(modal.children) > 0:
+            self.ai_chat_screen = modal.children[0]
+        
+        print(f"[DEBUG] Opening AI chat with locale: {self.current_language if hasattr(self, 'current_language') else 'ru'}")
+
+    def open_ai_settings_dialog(self, *args):
+        """Открывает настройки ИИ"""
+        open_ai_settings(self.ai_agent, locale=getattr(self, "current_language", "ru"))
+
+    def get_current_editor_text(self):
+        """Возвращает текст из текущего редактора"""
+        try:
+            print(f"[App] Getting current editor text...")
+            if hasattr(self, 'tab_manager'):
+                print(f"[App] Has tab_manager")
+                if hasattr(self.tab_manager, 'current_tab') and self.tab_manager.current_tab:
+                    print(f"[App] Has current_tab: {self.tab_manager.current_tab}")
+                    editor = self.tab_manager.current_tab.get('editor')
+                    print(f"[App] Got editor: {editor}")
+                    if editor:
+                        if hasattr(editor, 'text'):
+                            text = editor.text
+                            print(f"[App] Editor text length: {len(text)}")
+                            return text
+                        elif hasattr(editor, 'text_input') and hasattr(editor.text_input, 'text'):
+                            text = editor.text_input.text
+                            print(f"[App] Editor text_input text length: {len(text)}")
+                            return text
+                else:
+                    print(f"[App] No current_tab")
+            else:
+                print(f"[App] No tab_manager")
+                
+            # Альтернативный способ через code_input
+            if hasattr(self, 'code_input') and self.code_input:
+                text = self.code_input.text
+                print(f"[App] Code input text length: {len(text)}")
+                return text
+                
+        except Exception as e:
+            log_error(f"Error getting editor text: {e}")
+            import traceback
+            traceback.print_exc()
+        return ""
 
     def on_stop(self):
         """Остановка приложения"""
